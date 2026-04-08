@@ -105,7 +105,7 @@ return (
               </thead>
               <tbody>
                 {filtered.map((load) => (
-                  <tr key={load.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={load.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/loads/${load.id}`)}>
                     <td className="px-4 py-3 font-mono text-xs text-slate-400">{load.id.slice(0, 8)}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{load.pickup_location}</div>
@@ -127,7 +127,7 @@ return (
                         {load.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {load.status === 'draft' || load.status === 'pricing' ? (
                         <button onClick={() => router.push(`/pricing?loadId=${load.id}`)} className="text-xs px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-100">AI Price</button>
                       ) : (

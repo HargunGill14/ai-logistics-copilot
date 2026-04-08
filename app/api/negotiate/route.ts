@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/rateLimit'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -9,6 +11,21 @@ export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const allowed = rateLimit(user.id, 20, 60000)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a minute.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const {
       pickup_location,
@@ -22,10 +39,13 @@ export async function POST(request: NextRequest) {
       margin_percentage,
     } = body
 
+    const sanitizedPickup = String(pickup_location).slice(0, 100)
+    const sanitizedDelivery = String(delivery_location).slice(0, 100)
+
     const prompt = `You are an expert freight broker negotiation assistant. Generate professional negotiation messages for this load.
 
 LOAD DETAILS:
-- Route: ${pickup_location} → ${delivery_location}
+- Route: ${sanitizedPickup} → ${sanitizedDelivery}
 - Distance: ${distance_miles} miles
 - Load Type: ${load_type}
 - Weight: ${weight_lbs} lbs
@@ -35,16 +55,16 @@ LOAD DETAILS:
 - Expected Margin: ${margin_percentage}%
 
 Generate:
-1. A professional email to the shipper confirming/negotiating the rate
-2. A brief message to carriers asking for capacity at our target rate
+1. A professional email to the shipper
+2. A brief message to carriers
 3. A suggested counteroffer price if shipper pushes back
 
-Respond ONLY with a valid JSON object in exactly this format, no other text:
+Respond ONLY with valid JSON:
 {
-  "shipper_email": "full professional email text here",
-  "carrier_message": "brief carrier message here",
+  "shipper_email": "full email text",
+  "carrier_message": "brief carrier message",
   "counteroffer_price": number,
-  "counteroffer_note": "brief explanation of counteroffer strategy"
+  "counteroffer_note": "brief strategy note"
 }`
 
     const message = await anthropic.messages.create({
@@ -62,9 +82,6 @@ Respond ONLY with a valid JSON object in exactly this format, no other text:
     return NextResponse.json(negotiation)
   } catch (error) {
     console.error('Negotiation API error:', error)
-    return NextResponse.json(
-      { error: 'Failed to generate negotiation content' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to generate content' }, { status: 500 })
   }
 }

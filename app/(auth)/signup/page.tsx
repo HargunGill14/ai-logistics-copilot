@@ -14,6 +14,7 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState('broker')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -31,6 +32,7 @@ export default function SignupPage() {
         data: {
           full_name: fullName,
           company_name: companyName,
+          role: role,
         }
       }
     })
@@ -113,6 +115,30 @@ export default function SignupPage() {
                   minLength={8}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>I am a</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'broker', label: 'Freight Broker', icon: '📋' },
+                    { value: 'carrier', label: 'Carrier / Fleet', icon: '🚛' },
+                    { value: 'yard', label: 'Yard Manager', icon: '🏭' },
+                  ].map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setRole(r.value)}
+                      className={`p-3 rounded-lg border text-center transition-all ${
+                        role === r.value
+                          ? 'border-2 text-white'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                      style={role === r.value ? { backgroundColor: '#1a3a5c', borderColor: '#1a3a5c' } : {}}>
+                      <div className="text-lg mb-1">{r.icon}</div>
+                      <div className="text-xs font-medium">{r.label}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
