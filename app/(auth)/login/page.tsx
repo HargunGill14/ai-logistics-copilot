@@ -11,7 +11,7 @@ import Link from 'next/link'
 
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
       <LoginForm />
     </Suspense>
   )
