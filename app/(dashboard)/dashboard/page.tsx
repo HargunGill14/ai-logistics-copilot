@@ -1,20 +1,31 @@
 import { createClient } from '@/lib/supabase/server'
+import { Load } from '@/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: loads } = await supabase
-    .from('loads')
-    .select('*')
-    .order('created_at', { ascending: false })
+  let loads: Load[] = []
+  let fetchError: string | null = null
 
-  const activeLoads = loads?.filter(l => l.status === 'active' || l.status === 'negotiating') || []
-  const atRiskLoads = loads?.filter(l => l.margin_percentage && l.margin_percentage < 8) || []
-  const avgMargin = loads?.length
+  try {
+    const { data, error } = await supabase
+      .from('loads')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    loads = data ?? []
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : 'Failed to load dashboard data'
+  }
+
+  const activeLoads = loads.filter(l => l.status === 'active' || l.status === 'negotiating')
+  const atRiskLoads = loads.filter(l => l.margin_percentage && l.margin_percentage < 8)
+  const avgMargin = loads.length
     ? loads.filter(l => l.margin_percentage).reduce((sum, l) => sum + (l.margin_percentage || 0), 0) / loads.filter(l => l.margin_percentage).length
     : 0
-  const revenue = loads?.reduce((sum, l) => sum + (l.shipper_rate || 0), 0) || 0
+  const revenue = loads.reduce((sum, l) => sum + (l.shipper_rate || 0), 0)
 
   return (
     <div>
@@ -27,6 +38,12 @@ export default async function DashboardPage() {
           + New Load
         </a>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+          {fetchError}
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg border border-slate-200 p-4">

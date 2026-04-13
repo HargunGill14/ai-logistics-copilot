@@ -44,6 +44,7 @@ export default function LoadDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [statusError, setStatusError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
 
   useEffect(() => {
@@ -70,11 +71,16 @@ export default function LoadDetailPage() {
   async function updateStatus(newStatus: Load['status']) {
     if (!load) return
     setUpdatingStatus(true)
+    setStatusError('')
     const { error: updateErr } = await supabase
       .from('loads')
       .update({ status: newStatus })
       .eq('id', id)
-    if (!updateErr) setLoad({ ...load, status: newStatus })
+    if (updateErr) {
+      setStatusError('Failed to update status. Please try again.')
+    } else {
+      setLoad({ ...load, status: newStatus })
+    }
     setUpdatingStatus(false)
   }
 
@@ -215,11 +221,19 @@ export default function LoadDetailPage() {
               </div>
             </div>
             {load.risk_level && (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm border-t border-slate-100 pt-4">
                 <span className="text-slate-500">Risk level:</span>
                 <span className={`font-medium capitalize ${riskStyles[load.risk_level]}`}>
                   {load.risk_level}
                 </span>
+              </div>
+            )}
+            {load.ai_recommendation && (
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-medium text-slate-500 mb-1.5">AI recommendation</p>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg px-3 py-2.5">
+                  {load.ai_recommendation}
+                </p>
               </div>
             )}
           </div>
@@ -328,6 +342,11 @@ export default function LoadDetailPage() {
         {/* Status Controls */}
         <div className="bg-white rounded-lg border border-slate-200 p-5">
           <h2 className="text-sm font-semibold text-slate-900 mb-3">Update Status</h2>
+          {statusError && (
+            <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {statusError}
+            </div>
+          )}
           <div className="flex gap-2 flex-wrap">
             {(['draft', 'pricing', 'negotiating', 'active', 'completed'] as Load['status'][]).map((s) => (
               <button

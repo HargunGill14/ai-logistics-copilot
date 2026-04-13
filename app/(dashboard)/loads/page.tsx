@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Load } from '@/types'
 
@@ -22,6 +23,7 @@ const loadTypeLabels: Record<string, string> = {
 export default function LoadsPage() {
   const [loads, setLoads] = useState<Load[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const router = useRouter()
@@ -32,12 +34,18 @@ export default function LoadsPage() {
   }, [])
 
   async function fetchLoads() {
-    const { data } = await supabase
-      .from('loads')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setLoads(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('loads')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setLoads(data ?? [])
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load loads')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filtered = loads.filter((load) => {
@@ -79,6 +87,12 @@ return (
           <option value="completed">Completed</option>
         </select>
       </div>
+      {fetchError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+          {fetchError}
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-sm text-slate-400">Loading...</div>
@@ -106,7 +120,15 @@ return (
               <tbody>
                 {filtered.map((load) => (
                   <tr key={load.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/loads/${load.id}`)}>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-400">{load.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/loads/${load.id}`}
+                        className="font-mono text-xs hover:underline underline-offset-2"
+                        style={{ color: '#1a3a5c' }}
+                      >
+                        #{load.id.slice(0, 8).toUpperCase()}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{load.pickup_location}</div>
                       <div className="text-slate-400 text-xs">to {load.delivery_location}</div>

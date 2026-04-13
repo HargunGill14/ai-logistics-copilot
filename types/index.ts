@@ -28,6 +28,7 @@ export interface Load {
   margin_amount?: number
   margin_percentage?: number
   risk_level?: 'low' | 'medium' | 'high'
+  ai_recommendation?: string
   status: 'draft' | 'pricing' | 'negotiating' | 'active' | 'completed'
   created_at: string
   updated_at: string

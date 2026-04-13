@@ -16,6 +16,7 @@ interface Notification {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
   const [filter, setFilter] = useState('all')
   const supabase = createClient()
 
@@ -24,30 +25,38 @@ export default function NotificationsPage() {
   }, [])
 
   async function fetchNotifications() {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setNotifications(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setNotifications(data ?? [])
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load notifications')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function markAllRead() {
-    await supabase
+    const { error } = await supabase
       .from('notifications')
       .update({ read: true })
       .eq('read', false)
-    fetchNotifications()
+    if (!error) fetchNotifications()
   }
 
   async function markRead(id: string) {
-    await supabase
+    const { error } = await supabase
       .from('notifications')
       .update({ read: true })
       .eq('id', id)
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    )
+    if (!error) {
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: true } : n)
+      )
+    }
   }
 
   const filtered = notifications.filter(n => {
@@ -108,6 +117,12 @@ export default function NotificationsPage() {
           </button>
         ))}
       </div>
+
+      {fetchError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+          {fetchError}
+        </div>
+      )}
 
       <div className="space-y-2">
         {loading ? (

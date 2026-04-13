@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +16,7 @@ export default function SignupPage() {
   const [role, setRole] = useState('broker')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [submitted, setSubmitted] = useState(false)
   const supabase = createClient()
 
   async function handleSignup(e: React.FormEvent) {
@@ -29,21 +28,73 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           full_name: fullName,
           company_name: companyName,
           role: role,
-        }
-      }
+        },
+      },
     })
 
     if (error) {
       setError(error.message)
       setLoading(false)
     } else if (data.user) {
-      router.push('/dashboard')
-      router.refresh()
+      setSubmitted(true)
     }
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#1a3a5c' }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M3 14L8 7L13 10L17 4" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="17" cy="16" r="2.5" fill="#34d399"/>
+              </svg>
+            </div>
+            <div>
+              <div className="font-semibold text-slate-900 leading-tight">AI Logistics Copilot</div>
+              <div className="text-xs text-slate-500">Freight Broker Platform</div>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="pt-8 pb-8 text-center">
+              <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="#1a3a5c" strokeWidth="1.8" fill="none"/>
+                  <path d="M2 7l10 7 10-7" stroke="#1a3a5c" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-2">Check your email</h2>
+              <p className="text-sm text-slate-500 mb-1">
+                We sent a confirmation link to
+              </p>
+              <p className="text-sm font-medium text-slate-800 mb-5">{email}</p>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                Click the link in the email to verify your account. You can close this tab — the link will open a new page.
+              </p>
+            </CardContent>
+            <div className="px-6 pb-6 border-t border-slate-100 pt-4 text-center">
+              <p className="text-xs text-slate-400">
+                Wrong email?{' '}
+                <button
+                  onClick={() => setSubmitted(false)}
+                  className="font-medium underline underline-offset-2"
+                  style={{ color: '#1a3a5c' }}
+                >
+                  Go back
+                </button>
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (

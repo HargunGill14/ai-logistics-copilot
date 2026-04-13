@@ -11,6 +11,7 @@ import {
   PlusCircle,
   Calculator,
   MessageSquare,
+  Settings,
   LogOut
 } from 'lucide-react'
 
@@ -30,6 +31,12 @@ const navItems = [
       { href: '/pricing', label: 'AI Pricing', icon: Calculator },
       { href: '/negotiate', label: 'Negotiate', icon: MessageSquare },
     ]
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/settings', label: 'Settings', icon: Settings },
+    ]
   }
 ]
 
@@ -39,9 +46,11 @@ export default function Sidebar() {
   const supabase = createClient()
 
   async function handleSignOut() {
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    const { error } = await supabase.auth.signOut()
+    if (!error) {
+      router.push('/login')
+      router.refresh()
+    }
   }
 
   return (

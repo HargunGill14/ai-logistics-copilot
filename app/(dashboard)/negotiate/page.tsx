@@ -24,6 +24,7 @@ export default function NegotiatePage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
     if (loadId) fetchLoadAndGenerate(loadId)
@@ -50,7 +51,7 @@ export default function NegotiatePage() {
       const data = await response.json()
       setContent(data)
 
-      await supabase.from('negotiations').insert({
+      const { error: insertError } = await supabase.from('negotiations').insert({
         load_id: id,
         organization_id: loadData.organization_id,
         shipper_email: data.shipper_email,
@@ -58,6 +59,7 @@ export default function NegotiatePage() {
         counteroffer_price: data.counteroffer_price,
         status: 'pending',
       })
+      if (insertError) throw new Error('Generated successfully but failed to save negotiation record')
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -74,13 +76,20 @@ export default function NegotiatePage() {
 
   async function handleSendAndSave() {
     setSaving(true)
-    if (loadId) {
-      await supabase
-        .from('loads')
-        .update({ status: 'active' })
-        .eq('id', loadId)
+    setSaveError('')
+    try {
+      if (loadId) {
+        const { error: updateError } = await supabase
+          .from('loads')
+          .update({ status: 'active' })
+          .eq('id', loadId)
+        if (updateError) throw updateError
+      }
+      router.push('/loads')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save. Please try again.')
+      setSaving(false)
     }
-    router.push('/loads')
   }
 
   if (loading) {
@@ -196,6 +205,11 @@ export default function NegotiatePage() {
         </div>
 
         {/* Actions */}
+        {saveError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
+            {saveError}
+          </div>
+        )}
         <div className="flex gap-3">
           <button
             onClick={handleSendAndSave}

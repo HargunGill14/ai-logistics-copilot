@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const confirmationFailed = searchParams.get('error') === 'confirmation_failed'
   const supabase = createClient()
 
   async function handleLogin(e: React.FormEvent) {
@@ -60,6 +62,11 @@ export default function LoginPage() {
             <CardDescription>Sign in to your broker account</CardDescription>
           </CardHeader>
           <CardContent>
+            {confirmationFailed && (
+              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                That confirmation link is invalid or has already been used. Sign in below.
+              </div>
+            )}
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
