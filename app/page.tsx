@@ -1,6 +1,19 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'FreTraq | AI Pricing for Freight Brokers',
+  description:
+    'FreTraq gives freight brokers instant AI-powered lane pricing, auto-generated negotiation emails, and real-time margin tracking — all in one platform.',
+  alternates: {
+    canonical: 'https://fretraq.com',
+  },
+  openGraph: {
+    url: 'https://fretraq.com',
+  },
+}
 
 const features = [
   {
