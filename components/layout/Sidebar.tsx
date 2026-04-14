@@ -12,7 +12,8 @@ import {
   Calculator,
   MessageSquare,
   Settings,
-  LogOut
+  LogOut,
+  ShieldCheck,
 } from 'lucide-react'
 
 const navItems = [
@@ -40,7 +41,17 @@ const navItems = [
   }
 ]
 
-export default function Sidebar() {
+const adminNavItems = [
+  { href: '/dashboard', label: 'Broker View', icon: LayoutDashboard },
+  { href: '/carrier', label: 'Carrier View', icon: Truck },
+  { href: '/yard', label: 'Yard View', icon: ShieldCheck },
+]
+
+interface SidebarProps {
+  isAdmin: boolean
+}
+
+export default function Sidebar({ isAdmin }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -76,6 +87,36 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 p-2 overflow-y-auto">
+        {/* Admin dashboard switcher */}
+        {isAdmin && (
+          <div className="mb-4">
+            <div className="px-2 py-1 text-xs font-medium text-amber-600 uppercase tracking-wider flex items-center gap-1">
+              <ShieldCheck size={11} />
+              Admin
+            </div>
+            {adminNavItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm mb-0.5 transition-colors ${
+                    isActive
+                      ? 'text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                  style={isActive ? { backgroundColor: '#1a3a5c' } : {}}
+                >
+                  <Icon size={15} />
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Standard nav */}
         {navItems.map((section) => (
           <div key={section.label} className="mb-4">
             <div className="px-2 py-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
