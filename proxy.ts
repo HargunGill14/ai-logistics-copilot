@@ -31,6 +31,8 @@ export async function proxy(request: NextRequest) {
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/signup') &&
+    !request.nextUrl.pathname.startsWith('/api/waitlist') &&
+    !request.nextUrl.pathname.startsWith('/waitlist-confirmed') &&
     request.nextUrl.pathname !== '/'
   ) {
     const url = request.nextUrl.clone()
