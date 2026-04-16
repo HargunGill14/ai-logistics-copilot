@@ -51,17 +51,16 @@ function LoginForm() {
       <div className="w-full max-w-md">
 
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#1a3a5c'}}>
+        <div className="mb-8 flex items-center justify-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M3 14L8 7L13 10L17 4" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="17" cy="16" r="2.5" fill="#34d399"/>
+              <path d="M4 5.5H16" stroke="#E2E8F0" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M4 10H13.5" stroke="#94A3B8" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M4 14.5H11" stroke="#64748B" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M15 13L17 15L15 17" stroke="#1a3a5c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <div>
-            <div className="font-semibold text-slate-900 leading-tight">AI Logistics Copilot</div>
-            <div className="text-xs text-slate-500">Freight Broker Platform</div>
-          </div>
+          <div className="text-lg font-semibold tracking-tight text-slate-900">FreTraq</div>
         </div>
 
         <Card>
@@ -115,7 +114,7 @@ function LoginForm() {
           </CardContent>
           <CardFooter className="justify-center">
             <p className="text-sm text-slate-500">
-              Don't have an account?{' '}
+              New here?{' '}
               <Link href="/signup" className="font-medium" style={{color: '#1a3a5c'}}>
                 Sign up
               </Link>
