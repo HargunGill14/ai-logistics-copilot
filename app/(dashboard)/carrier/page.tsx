@@ -49,33 +49,17 @@ export default function CarrierDashboardPage() {
       }
       setUserId(user.id)
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
+      const res = await fetch('/api/carrier/loads')
+      const json = await res.json()
 
-      setOrganizationId(profile?.organization_id ?? null)
-
-      const { data: loadsData, error: loadsErr } = await supabase
-        .from('loads')
-        .select('*')
-        .in('status', ['active', 'pricing', 'negotiating'])
-        .order('created_at', { ascending: false })
-
-      if (loadsErr) throw loadsErr
-      setAvailableLoads(loadsData ?? [])
-
-      const { data: postsData, error: postsErr } = await supabase
-        .from('capacity_posts')
-        .select('*')
-        .eq('created_by', user.id)
-        .order('created_at', { ascending: false })
-
-      if (postsErr && postsErr.code !== 'PGRST116' && postsErr.code !== '42P01') {
-        throw postsErr
+      if (!res.ok) {
+        if (res.status === 401) { router.push('/login'); return }
+        throw new Error(json.error ?? 'Failed to load data')
       }
-      setMyPosts(postsData ?? [])
+
+      setOrganizationId(json.organization_id ?? null)
+      setAvailableLoads(json.loads ?? [])
+      setMyPosts(json.posts ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {

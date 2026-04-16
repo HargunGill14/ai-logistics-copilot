@@ -62,37 +62,17 @@ export default function YardDashboardPage() {
       }
       setUserId(user.id)
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
+      const res = await fetch(`/api/yard/data?date=${selectedDate}`)
+      const json = await res.json()
 
-      setOrganizationId(profile?.organization_id ?? null)
-
-      const dayStart = `${selectedDate}T00:00:00Z`
-      const dayEnd = `${selectedDate}T23:59:59Z`
-
-      const { data: apptData, error: apptErr } = await supabase
-        .from('dock_appointments')
-        .select('*')
-        .gte('scheduled_time', dayStart)
-        .lte('scheduled_time', dayEnd)
-        .order('scheduled_time', { ascending: true })
-
-      if (apptErr && apptErr.code !== '42P01') {
-        throw apptErr
+      if (!res.ok) {
+        if (res.status === 401) { router.push('/login'); return }
+        throw new Error(json.error ?? 'Failed to load yard data')
       }
-      setAppointments(apptData ?? [])
 
-      const { data: loadsData, error: loadsErr } = await supabase
-        .from('loads')
-        .select('*')
-        .in('status', ['active', 'negotiating', 'pricing'])
-        .order('created_at', { ascending: false })
-
-      if (loadsErr) throw loadsErr
-      setLoads(loadsData ?? [])
+      setOrganizationId(json.organization_id ?? null)
+      setAppointments(json.appointments ?? [])
+      setLoads(json.loads ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load yard data')
     } finally {
@@ -118,21 +98,21 @@ export default function YardDashboardPage() {
 
       const scheduledAt = new Date(`${selectedDate}T${form.scheduled_time}:00`).toISOString()
 
-      const { error: insertError } = await supabase
-        .from('dock_appointments')
-        .insert({
-          organization_id: organizationId,
-          created_by: userId,
+      const res = await fetch('/api/yard/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           dock_number: parseInt(form.dock_number, 10),
           truck_id: form.truck_id,
           carrier_name: form.carrier_name,
           type: form.type,
           scheduled_time: scheduledAt,
-          status: 'scheduled',
           load_id: form.load_id || null,
-        })
+        }),
+      })
 
-      if (insertError) throw insertError
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to schedule appointment')
 
       setForm({
         dock_number: '1',
@@ -152,11 +132,13 @@ export default function YardDashboardPage() {
 
   async function updateStatus(id: string, status: DockAppointment['status']) {
     try {
-      const { error: updateError } = await supabase
-        .from('dock_appointments')
-        .update({ status })
-        .eq('id', id)
-      if (updateError) throw updateError
+      const res = await fetch('/api/yard/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to update appointment')
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update appointment')
