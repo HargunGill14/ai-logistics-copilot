@@ -20,6 +20,7 @@ import {
   Store,
   MapPin,
   BadgeCheck,
+  UserCog,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -80,12 +81,15 @@ const carrierMarketplaceSection: NavSection = {
   ],
 }
 
+const DEMO_EMAIL = 'legitgamer071@gmail.com'
+
 interface SidebarProps {
   isAdmin: boolean
   role?: string
+  email?: string
 }
 
-export default function Sidebar({ isAdmin, role = 'broker' }: SidebarProps) {
+export default function Sidebar({ isAdmin, role = 'broker', email }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -239,6 +243,23 @@ export default function Sidebar({ isAdmin, role = 'broker' }: SidebarProps) {
               </div>
             </div>
           ))}
+
+          {email === DEMO_EMAIL && (
+            <div className="mt-6">
+              {!collapsed && (
+                <div className="mb-2 flex items-center gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-violet-500">
+                  <UserCog size={11} />
+                  Demo
+                </div>
+              )}
+              <div className="space-y-1">
+                <NavLink
+                  item={{ href: '/admin/switch-role', label: 'Switch Role', icon: UserCog }}
+                  collapsed={collapsed}
+                />
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className={`border-t border-slate-200 ${collapsed ? 'p-2' : 'p-3'}`}>

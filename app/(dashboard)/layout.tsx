@@ -46,7 +46,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar isAdmin={isAdmin} role={role} />
+      <Sidebar isAdmin={isAdmin} role={role} email={user.email ?? undefined} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6">
           {children}
