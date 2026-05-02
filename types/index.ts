@@ -75,3 +75,121 @@ export interface NegotiationResult {
   counteroffer_price: number
   counteroffer_margin: number
 }
+
+export type EquipmentType = 'dry_van' | 'reefer' | 'flatbed' | 'step_deck' | 'power_only' | 'tanker'
+export type MarketplaceLoadStatus = 'posted' | 'covered' | 'expired' | 'cancelled'
+export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+
+export interface MarketplaceLoad {
+  id: string
+  load_id: string | null
+  broker_id: string
+  organization_id: string
+  origin_city: string
+  origin_state: string
+  destination_city: string
+  destination_state: string
+  pickup_date: string
+  delivery_date: string | null
+  equipment_type: EquipmentType
+  weight_lbs: number | null
+  commodity: string | null
+  target_rate: number
+  max_rate: number | null
+  bid_deadline: string | null
+  status: MarketplaceLoadStatus
+  auto_award: boolean
+  posted_at: string
+  covered_at: string | null
+  created_at: string
+}
+
+export interface LoadBid {
+  id: string
+  marketplace_load_id: string
+  carrier_id: string
+  carrier_org_id: string
+  bid_amount: number
+  estimated_pickup: string | null
+  notes: string | null
+  status: BidStatus
+  submitted_at: string
+  responded_at: string | null
+}
+
+export type VerificationStatus = 'pending' | 'verified' | 'flagged' | 'rejected'
+export type TrustBadgeLevel = 'verified' | 'caution' | 'unverified'
+export type DocumentType = 'insurance_cert' | 'mc_authority' | 'w9' | 'void_check'
+export type AiVerdict = 'valid' | 'invalid' | 'review'
+
+export interface CarrierVerification {
+  id: string
+  carrier_id: string
+  usdot_number: string | null
+  mc_number: string | null
+  legal_name: string | null
+  operating_status: string | null
+  safety_rating: string | null
+  insurance_on_file: boolean | null
+  cargo_insurance: boolean | null
+  authority_age_days: number | null
+  trust_score: number
+  risk_flags: string[]
+  verification_status: VerificationStatus
+  last_verified_at: string | null
+  next_verify_at: string
+  created_at: string
+}
+
+export interface VerificationDocument {
+  id: string
+  carrier_id: string
+  document_type: DocumentType
+  storage_path: string
+  file_name: string
+  file_size_kb: number | null
+  ai_verdict: AiVerdict | null
+  ai_flags: string[]
+  ai_confidence: number | null
+  analyzed_at: string | null
+  uploaded_at: string
+}
+
+export type TrackingStatus =
+  | 'not_started'
+  | 'en_route_pickup'
+  | 'at_pickup'
+  | 'loaded'
+  | 'en_route_delivery'
+  | 'at_delivery'
+  | 'delivered'
+
+export interface ShipmentTracking {
+  id: string
+  load_id: string
+  tracking_token: string
+  driver_name: string
+  driver_phone: string
+  carrier_id: string | null
+  status: TrackingStatus
+  current_lat: number | null
+  current_lng: number | null
+  last_ping_at: string | null
+  origin_lat: number | null
+  origin_lng: number | null
+  destination_lat: number | null
+  destination_lng: number | null
+  yard_lat: number | null
+  yard_lng: number | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface LocationPing {
+  id: string
+  tracking_id: string
+  lat: number
+  lng: number
+  speed_mph: number | null
+  recorded_at: string
+}

@@ -17,6 +17,9 @@ import {
   Menu,
   X,
   ChevronLeft,
+  Store,
+  MapPin,
+  BadgeCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -61,11 +64,28 @@ const adminNavItems: NavLinkItem[] = [
   { href: '/yard', label: 'Yard View', icon: ShieldCheck },
 ]
 
-interface SidebarProps {
-  isAdmin: boolean
+const brokerMarketplaceSection: NavSection = {
+  label: 'Marketplace',
+  items: [
+    { href: '/marketplace', label: 'Marketplace', icon: Store },
+    { href: '/tracking', label: 'Tracking', icon: MapPin },
+  ],
 }
 
-export default function Sidebar({ isAdmin }: SidebarProps) {
+const carrierMarketplaceSection: NavSection = {
+  label: 'Marketplace',
+  items: [
+    { href: '/carrier/marketplace', label: 'Marketplace', icon: Store },
+    { href: '/carrier/verify', label: 'Verification', icon: BadgeCheck },
+  ],
+}
+
+interface SidebarProps {
+  isAdmin: boolean
+  role?: string
+}
+
+export default function Sidebar({ isAdmin, role = 'broker' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -168,6 +188,37 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
               )}
               <div className="space-y-1">
                 {adminNavItems.map((item) => (
+                  <NavLink key={item.href} item={item} collapsed={collapsed} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Role-based marketplace section */}
+          {(role === 'broker' || isAdmin) && (
+            <div className={isAdmin ? 'mt-6' : 'mb-6'}>
+              {!collapsed && (
+                <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {brokerMarketplaceSection.label}
+                </div>
+              )}
+              <div className="space-y-1">
+                {brokerMarketplaceSection.items.map((item) => (
+                  <NavLink key={item.href} item={item} collapsed={collapsed} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {role === 'carrier' && (
+            <div className="mb-6">
+              {!collapsed && (
+                <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {carrierMarketplaceSection.label}
+                </div>
+              )}
+              <div className="space-y-1">
+                {carrierMarketplaceSection.items.map((item) => (
                   <NavLink key={item.href} item={item} collapsed={collapsed} />
                 ))}
               </div>
