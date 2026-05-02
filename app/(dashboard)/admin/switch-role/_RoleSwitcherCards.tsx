@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { LayoutDashboard, Truck, Warehouse, Check, Loader2 } from 'lucide-react'
 
 type Role = 'broker' | 'carrier' | 'yard'
@@ -46,8 +45,13 @@ const CARDS: RoleCard[] = [
   },
 ]
 
+const ROLE_DESTINATIONS: Record<Role, string> = {
+  broker: '/dashboard',
+  carrier: '/carrier',
+  yard: '/yard',
+}
+
 export function RoleSwitcherCards({ currentRole }: { currentRole: string }) {
-  const router = useRouter()
   const [switching, setSwitching] = useState<Role | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,8 +74,10 @@ export function RoleSwitcherCards({ currentRole }: { currentRole: string }) {
         return
       }
 
-      router.push('/dashboard')
-      router.refresh()
+      // Full page reload so all server components re-read the updated profile.
+      // router.refresh() alone doesn't reliably bust server component caches
+      // when the session cookie hasn't changed.
+      window.location.href = ROLE_DESTINATIONS[role]
     } catch {
       setError('Network error — please try again')
       setSwitching(null)
