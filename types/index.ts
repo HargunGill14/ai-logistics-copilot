@@ -9,8 +9,11 @@ export interface Profile {
   organization_id: string
   full_name: string
   email: string
-  role: string
+  role: string | null
   is_admin: boolean
+  onboarding_complete: boolean
+  company_name: string | null
+  phone_number: string | null
   created_at: string
 }
 

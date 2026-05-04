@@ -1,0 +1,85 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+
+const schema = z.object({
+  company_name: z.string().min(1, 'Company name is required').max(100),
+  phone_number: z
+    .string()
+    .regex(/^\+?[\d\s\-().]{7,20}$/, 'Enter a valid phone number'),
+})
+
+function serviceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase service role env vars missing')
+  return createServiceClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, organization_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || profile.role !== 'broker') {
+      return NextResponse.json(
+        { error: 'Only brokers can complete broker onboarding' },
+        { status: 403 }
+      )
+    }
+
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const parsed = schema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
+    const { company_name, phone_number } = parsed.data
+    const svc = serviceClient()
+
+    const { error: profileError } = await svc
+      .from('profiles')
+      .update({ company_name, phone_number, onboarding_complete: true })
+      .eq('id', user.id)
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 })
+    }
+
+    if (profile.organization_id) {
+      await svc
+        .from('organizations')
+        .update({ name: company_name })
+        .eq('id', profile.organization_id)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

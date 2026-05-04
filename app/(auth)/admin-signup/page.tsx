@@ -26,10 +26,8 @@ export default function AdminSignupPage() {
   const supabase = createClient()
 
   const [fullName, setFullName] = useState('')
-  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('broker')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -47,8 +45,6 @@ export default function AdminSignupPage() {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: fullName.trim(),
-            company_name: companyName.trim(),
-            role,
           },
         },
       })
@@ -121,17 +117,6 @@ export default function AdminSignupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyName">Company name</Label>
-                <Input
-                  id="companyName"
-                  type="text"
-                  placeholder="Brodie Freight LLC"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
@@ -153,31 +138,6 @@ export default function AdminSignupPage() {
                   minLength={6}
                   required
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'broker', label: 'Freight Broker' },
-                    { value: 'carrier', label: 'Carrier / Fleet' },
-                    { value: 'yard', label: 'Yard Manager' },
-                  ].map((r) => (
-                    <button
-                      key={r.value}
-                      type="button"
-                      onClick={() => setRole(r.value)}
-                      className={`p-3 rounded-lg border text-center transition-all ${
-                        role === r.value
-                          ? 'border-2 text-white'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                      style={role === r.value ? { backgroundColor: '#1a3a5c', borderColor: '#1a3a5c' } : {}}
-                    >
-                      <div className="text-xs font-medium">{r.label}</div>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {error && (

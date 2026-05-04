@@ -13,14 +13,12 @@ import {
   MessageSquare,
   Settings,
   LogOut,
-  ShieldCheck,
   Menu,
   X,
   ChevronLeft,
   Store,
   MapPin,
   BadgeCheck,
-  UserCog,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -59,12 +57,6 @@ const navItems: NavSection[] = [
   },
 ]
 
-const adminNavItems: NavLinkItem[] = [
-  { href: '/dashboard', label: 'Broker View', icon: LayoutDashboard },
-  { href: '/carrier', label: 'Carrier View', icon: Truck },
-  { href: '/yard', label: 'Yard View', icon: ShieldCheck },
-]
-
 const brokerMarketplaceSection: NavSection = {
   label: 'Marketplace',
   items: [
@@ -81,15 +73,12 @@ const carrierMarketplaceSection: NavSection = {
   ],
 }
 
-const DEMO_EMAIL = 'legitgamer071@gmail.com'
-
 interface SidebarProps {
-  isAdmin: boolean
   role?: string
   email?: string
 }
 
-export default function Sidebar({ isAdmin, role = 'broker', email }: SidebarProps) {
+export default function Sidebar({ role = 'broker', email }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -182,25 +171,9 @@ export default function Sidebar({ isAdmin, role = 'broker', email }: SidebarProp
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {isAdmin && (
-            <div className="mb-6">
-              {!collapsed && (
-                <div className="mb-2 flex items-center gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-amber-600">
-                  <ShieldCheck size={11} />
-                  Admin
-                </div>
-              )}
-              <div className="space-y-1">
-                {adminNavItems.map((item) => (
-                  <NavLink key={item.href} item={item} collapsed={collapsed} />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Role-based marketplace section */}
-          {(role === 'broker' || isAdmin) && (
-            <div className={isAdmin ? 'mt-6' : 'mb-6'}>
+          {role === 'broker' && (
+            <div className="mb-6">
               {!collapsed && (
                 <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   {brokerMarketplaceSection.label}
@@ -230,7 +203,7 @@ export default function Sidebar({ isAdmin, role = 'broker', email }: SidebarProp
           )}
 
           {navItems.map((section, idx) => (
-            <div key={section.label} className={idx > 0 || isAdmin ? 'mt-6' : ''}>
+            <div key={section.label} className={idx > 0 ? 'mt-6' : ''}>
               {!collapsed && (
                 <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   {section.label}
@@ -244,22 +217,6 @@ export default function Sidebar({ isAdmin, role = 'broker', email }: SidebarProp
             </div>
           ))}
 
-          {email === DEMO_EMAIL && (
-            <div className="mt-6">
-              {!collapsed && (
-                <div className="mb-2 flex items-center gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-violet-500">
-                  <UserCog size={11} />
-                  Demo
-                </div>
-              )}
-              <div className="space-y-1">
-                <NavLink
-                  item={{ href: '/admin/switch-role', label: 'Switch Role', icon: UserCog }}
-                  collapsed={collapsed}
-                />
-              </div>
-            </div>
-          )}
         </nav>
 
         <div className={`border-t border-slate-200 ${collapsed ? 'p-2' : 'p-3'}`}>
