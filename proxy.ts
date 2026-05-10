@@ -6,7 +6,6 @@ const AUTH_PATHS = [
   '/signup',
   '/admin-signup',
   '/auth/',
-  '/waitlist-confirmed',
   '/confirm',
 ]
 

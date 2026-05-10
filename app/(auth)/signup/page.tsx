@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,62 +10,89 @@ import Link from 'next/link'
 
 const Logo = () => (
   <div className="flex items-center justify-center gap-3 mb-8">
-    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#1a3a5c' }}>
+    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M3 14L8 7L13 10L17 4" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx="17" cy="16" r="2.5" fill="#34d399"/>
+        <path d="M4 5.5H16" stroke="#E2E8F0" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M4 10H13.5" stroke="#94A3B8" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M4 14.5H11" stroke="#64748B" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M15 13L17 15L15 17" stroke="#1a3a5c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
-    <div>
-      <div className="font-semibold text-slate-900 leading-tight">FreTraq</div>
-      <div className="text-xs text-slate-500">AI Logistics Copilot</div>
-    </div>
+    <div className="text-lg font-semibold tracking-tight text-slate-900">FreTraq</div>
   </div>
 )
 
 export default function SignupPage() {
-  const router = useRouter()
   const [fullName, setFullName] = useState('')
-  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState('broker')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+
+  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          full_name: fullName.trim(),
-          company_name: companyName.trim(),
-          role,
-        }),
-      })
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
 
-      const json = await res.json()
-
-      if (!res.ok) {
-        setError(json.error ?? 'Something went wrong. Please try again.')
-        setLoading(false)
-        return
-      }
-
-      const params = new URLSearchParams({
-        name: fullName.trim(),
-        email: email.trim(),
-      })
-      router.push(`/waitlist-confirmed?${params.toString()}`)
-    } catch {
-      setError('Something went wrong. Please try again.')
+    if (error) {
+      setError(error.message)
       setLoading(false)
+    } else {
+      setConfirmed(true)
     }
+  }
+
+  if (confirmed) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Logo />
+          <Card>
+            <CardContent className="pt-10 pb-10 text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 bg-emerald-50">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" fill="#22c55e" />
+                  <path d="M7.5 12.5l3 3 6-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h1 className="text-xl font-semibold text-slate-900 mb-3">Check your email</h1>
+              <p className="text-sm text-slate-600 leading-relaxed max-w-xs mx-auto">
+                We sent a confirmation link to{' '}
+                <span className="font-medium text-slate-800">{email}</span>.
+                Click it to activate your account.
+              </p>
+              <p className="text-xs text-slate-400 mt-5 leading-relaxed max-w-xs mx-auto">
+                Once confirmed you&apos;ll be taken straight to onboarding.
+              </p>
+            </CardContent>
+            <div className="px-6 pb-6 border-t border-slate-100 pt-4 text-center">
+              <p className="text-xs text-slate-400">
+                Wrong email?{' '}
+                <button
+                  onClick={() => { setConfirmed(false); setEmail(''); setPassword('') }}
+                  className="font-medium underline underline-offset-2"
+                  style={{ color: '#1a3a5c' }}
+                >
+                  Go back
+                </button>
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -75,8 +102,8 @@ export default function SignupPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Join the waitlist</CardTitle>
-            <CardDescription>We&apos;re launching soon. Reserve your spot now.</CardDescription>
+            <CardTitle className="text-xl">Create your account</CardTitle>
+            <CardDescription>Get started with FreTraq — free to try.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -92,17 +119,6 @@ export default function SignupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyName">Brokerage company name</Label>
-                <Input
-                  id="companyName"
-                  type="text"
-                  placeholder="Brodie Freight LLC"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="email">Work email</Label>
                 <Input
                   id="email"
@@ -113,31 +129,17 @@ export default function SignupPage() {
                   required
                 />
               </div>
-
               <div className="space-y-2">
-                <Label>I am a</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'broker', label: 'Freight Broker', icon: '📋' },
-                    { value: 'carrier', label: 'Carrier / Fleet', icon: '🚛' },
-                    { value: 'yard', label: 'Yard Manager', icon: '🏭' },
-                  ].map((r) => (
-                    <button
-                      key={r.value}
-                      type="button"
-                      onClick={() => setRole(r.value)}
-                      className={`p-3 rounded-lg border text-center transition-all ${
-                        role === r.value
-                          ? 'border-2 text-white'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                      style={role === r.value ? { backgroundColor: '#1a3a5c', borderColor: '#1a3a5c' } : {}}
-                    >
-                      <div className="text-lg mb-1">{r.icon}</div>
-                      <div className="text-xs font-medium">{r.label}</div>
-                    </button>
-                  ))}
-                </div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                  required
+                />
               </div>
 
               {error && (
@@ -152,7 +154,7 @@ export default function SignupPage() {
                 style={{ backgroundColor: '#1a3a5c' }}
                 disabled={loading}
               >
-                {loading ? 'Joining waitlist...' : 'Join waitlist'}
+                {loading ? 'Creating account...' : 'Create account'}
               </Button>
             </form>
           </CardContent>

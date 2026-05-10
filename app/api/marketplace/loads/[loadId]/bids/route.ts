@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { canBid } from '@/lib/subscription'
 
 const schema = z.object({
   bid_amount: z.number().positive().max(99999),
@@ -39,6 +40,17 @@ export async function POST(
 
     if (profile.role !== 'carrier') {
       return NextResponse.json({ error: 'Only carriers can submit bids' }, { status: 403 })
+    }
+
+    const bidAllowed = await canBid(user.id)
+    if (!bidAllowed) {
+      return NextResponse.json(
+        {
+          error: 'Upgrade to Carrier Plan to start bidding — $49/month',
+          upgrade_required: true,
+        },
+        { status: 403 }
+      )
     }
 
     const { data: verification } = await supabase

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { canPostLoad } from '@/lib/subscription'
 
 const schema = z.object({
   origin_city: z.string().min(1).max(100),
@@ -40,6 +41,17 @@ export async function POST(request: NextRequest) {
 
     if (profile.role !== 'broker' && profile.role !== 'admin') {
       return NextResponse.json({ error: 'Only brokers can post loads' }, { status: 403 })
+    }
+
+    const allowed = await canPostLoad(user.id)
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: 'Free plan limit reached. Upgrade to post unlimited loads.',
+          upgrade_required: true,
+        },
+        { status: 403 }
+      )
     }
 
     const body = await request.json()

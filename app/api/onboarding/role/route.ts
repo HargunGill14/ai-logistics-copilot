@@ -53,8 +53,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateError } = await serviceClient()
       .from('profiles')
-      .update({ role })
-      .eq('id', user.id)
+      .upsert({ id: user.id, role }, { onConflict: 'id' })
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })

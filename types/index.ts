@@ -14,6 +14,11 @@ export interface Profile {
   onboarding_complete: boolean
   company_name: string | null
   phone_number: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  subscription_status: 'free' | 'active' | 'past_due' | 'cancelled'
+  subscription_plan: 'broker_monthly' | 'carrier_monthly' | null
+  plan_period_end: string | null
   created_at: string
 }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { LayoutDashboard, Truck, Loader2 } from 'lucide-react'
 
 type Role = 'broker' | 'carrier'
@@ -36,7 +35,6 @@ const ROLES: {
 ]
 
 export function RolePicker() {
-  const router = useRouter()
   const [selecting, setSelecting] = useState<Role | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,7 +58,9 @@ export function RolePicker() {
         return
       }
 
-      router.push(role === 'broker' ? '/onboarding/broker' : '/onboarding/carrier')
+      // Hard navigate so all server components re-read the updated profile row.
+      // router.push() alone doesn't reliably bust RSC cache after a DB mutation.
+      window.location.href = role === 'broker' ? '/onboarding/broker' : '/onboarding/carrier'
     } catch {
       setError('Network error — please try again.')
       setSelecting(null)

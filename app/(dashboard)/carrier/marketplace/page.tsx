@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { MarketplaceLoad, EquipmentType } from '@/types'
 import { subscribeToNewLoads } from '@/lib/marketplace-realtime'
-import { AlertTriangle, ArrowRight, CheckCircle, AlertCircle, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle, AlertCircle, X, Zap } from 'lucide-react'
 
 const equipmentLabels: Record<string, string> = {
   dry_van: 'Dry Van',
@@ -190,6 +191,45 @@ function BidModal({ load, onClose, onSuccess }: BidModalProps) {
   )
 }
 
+function UpgradeModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px]"
+      />
+      <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-xl text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a3a5c]/10">
+          <Zap size={22} className="text-[#1a3a5c]" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Upgrade to start bidding</h2>
+        <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+          Upgrade to the Carrier Plan to submit bids on loads — <strong className="text-slate-700">$49/month</strong>.
+        </p>
+        <div className="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={() => router.push('/plans')}
+            className="rounded-xl bg-[#1a3a5c] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a3a5c]/90 transition-colors"
+          >
+            View Plans
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Toast({ message, type }: { message: string; type: 'success' | 'error' }) {
   return (
     <div
@@ -209,7 +249,9 @@ export default function CarrierMarketplacePage() {
   const [loads, setLoads] = useState<MarketplaceLoad[]>([])
   const [loading, setLoading] = useState(true)
   const [trustScore, setTrustScore] = useState<number | null>(null)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('free')
   const [selectedLoad, setSelectedLoad] = useState<MarketplaceLoad | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   function showToast(message: string, type: 'success' | 'error' = 'success') {
@@ -223,7 +265,7 @@ export default function CarrierMarketplacePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [loadsRes, verifyRes] = await Promise.all([
+      const [loadsRes, verifyRes, profileRes] = await Promise.all([
         supabase
           .from('marketplace_loads')
           .select('*')
@@ -234,10 +276,16 @@ export default function CarrierMarketplacePage() {
           .select('trust_score')
           .eq('carrier_id', user.id)
           .single(),
+        supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('id', user.id)
+          .single(),
       ])
 
       setLoads((loadsRes.data as MarketplaceLoad[]) ?? [])
       setTrustScore(verifyRes.data?.trust_score ?? null)
+      setSubscriptionStatus(profileRes.data?.subscription_status ?? 'free')
     } finally {
       setLoading(false)
     }
@@ -307,7 +355,13 @@ export default function CarrierMarketplacePage() {
             <CarrierLoadCard
               key={load.id}
               load={load}
-              onBid={() => setSelectedLoad(load)}
+              onBid={() => {
+                if (subscriptionStatus !== 'active') {
+                  setShowUpgradeModal(true)
+                } else {
+                  setSelectedLoad(load)
+                }
+              }}
             />
           ))}
         </div>
@@ -320,6 +374,8 @@ export default function CarrierMarketplacePage() {
           onSuccess={() => showToast('Bid submitted successfully!', 'success')}
         />
       )}
+
+      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
 
       {toast && <Toast message={toast.message} type={toast.type} />}
     </div>

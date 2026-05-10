@@ -19,6 +19,7 @@ import {
   Store,
   MapPin,
   BadgeCheck,
+  CreditCard,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -53,7 +54,10 @@ const navItems: NavSection[] = [
   },
   {
     label: 'Account',
-    items: [{ href: '/settings', label: 'Settings', icon: Settings }],
+    items: [
+      { href: '/plans', label: 'Plans & Billing', icon: CreditCard },
+      { href: '/settings', label: 'Settings', icon: Settings },
+    ],
   },
 ]
 
