@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { MarketplaceLoad, EquipmentType } from '@/types'
 import { subscribeToNewLoads } from '@/lib/marketplace-realtime'
 import { AlertTriangle, ArrowRight, CheckCircle, AlertCircle, X, Zap } from 'lucide-react'
+import { ScorecardBadge } from '@/components/marketplace/ScorecardBadge'
+import type { ScorecardMetrics } from '@/lib/scorecard'
 
 const equipmentLabels: Record<string, string> = {
   dry_van: 'Dry Van',
@@ -249,6 +251,7 @@ export default function CarrierMarketplacePage() {
   const [loads, setLoads] = useState<MarketplaceLoad[]>([])
   const [loading, setLoading] = useState(true)
   const [trustScore, setTrustScore] = useState<number | null>(null)
+  const [scorecard, setScorecard] = useState<ScorecardMetrics | null>(null)
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('free')
   const [selectedLoad, setSelectedLoad] = useState<MarketplaceLoad | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
@@ -273,7 +276,7 @@ export default function CarrierMarketplacePage() {
           .order('created_at', { ascending: false }),
         supabase
           .from('carrier_verifications')
-          .select('trust_score')
+          .select('trust_score, total_bids, accepted_bids, on_time_pickups, on_time_deliveries, total_loads_completed')
           .eq('carrier_id', user.id)
           .single(),
         supabase
@@ -285,6 +288,16 @@ export default function CarrierMarketplacePage() {
 
       setLoads((loadsRes.data as MarketplaceLoad[]) ?? [])
       setTrustScore(verifyRes.data?.trust_score ?? null)
+      if (verifyRes.data) {
+        const v = verifyRes.data
+        setScorecard({
+          total_bids: v.total_bids ?? 0,
+          accepted_bids: v.accepted_bids ?? 0,
+          on_time_pickups: v.on_time_pickups ?? 0,
+          on_time_deliveries: v.on_time_deliveries ?? 0,
+          total_loads_completed: v.total_loads_completed ?? 0,
+        })
+      }
       setSubscriptionStatus(profileRes.data?.subscription_status ?? 'free')
     } finally {
       setLoading(false)
@@ -311,6 +324,13 @@ export default function CarrierMarketplacePage() {
         <h1 className="text-xl font-semibold text-slate-900">Available Loads</h1>
         <p className="text-sm text-slate-500">Browse and bid on loads posted by brokers</p>
       </div>
+
+      {/* Own scorecard */}
+      {scorecard && (
+        <div className="mb-6 max-w-xs">
+          <ScorecardBadge metrics={scorecard} size="md" />
+        </div>
+      )}
 
       {/* Trust score warning */}
       {showWarning && (

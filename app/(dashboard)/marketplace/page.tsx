@@ -13,6 +13,8 @@ import {
   Clock,
   ChevronRight,
 } from 'lucide-react'
+import { ScorecardBadge } from '@/components/marketplace/ScorecardBadge'
+import type { ScorecardMetrics } from '@/lib/scorecard'
 
 const equipmentLabels: Record<string, string> = {
   dry_van: 'Dry Van',
@@ -32,6 +34,7 @@ const loadStatusStyles: Record<string, string> = {
 
 interface BidWithCarrier extends LoadBid {
   profiles: { full_name: string } | null
+  scorecard: ScorecardMetrics | null
 }
 
 interface PostLoadForm {
@@ -232,9 +235,12 @@ function BidSlideOver({ load, bids, loading, actionLoading, onClose, onBidAction
                 >
                   <div className="mb-2 flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">
-                        {bid.profiles?.full_name ?? 'Carrier'}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-900">
+                          {bid.profiles?.full_name ?? 'Carrier'}
+                        </p>
+                        {bid.scorecard && <ScorecardBadge metrics={bid.scorecard} size="sm" />}
+                      </div>
                       <p className="text-xs text-slate-500">
                         {new Date(bid.submitted_at).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -335,24 +341,19 @@ export default function BrokerMarketplacePage() {
     }
   }, [supabase])
 
-  const fetchBids = useCallback(
-    async (loadId: string) => {
-      setLoadingBids(true)
-      try {
-        const { data, error } = await supabase
-          .from('load_bids')
-          .select('*, profiles!carrier_id(full_name)')
-          .eq('marketplace_load_id', loadId)
-          .order('submitted_at', { ascending: false })
-
-        if (error) throw error
-        setBids((data as BidWithCarrier[]) ?? [])
-      } finally {
-        setLoadingBids(false)
-      }
-    },
-    [supabase],
-  )
+  const fetchBids = useCallback(async (loadId: string) => {
+    setLoadingBids(true)
+    try {
+      const res = await fetch(`/api/marketplace/loads/${loadId}/bids`)
+      if (!res.ok) throw new Error('Failed to fetch bids')
+      const data: BidWithCarrier[] = await res.json()
+      setBids(data)
+    } catch {
+      setBids([])
+    } finally {
+      setLoadingBids(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'my_loads') fetchMyLoads()

@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const { data: tracking, error: lookupError } = await supabase
       .from('shipment_tracking')
-      .select('id, status, load_id, driver_name, origin_lat, origin_lng, destination_lat, destination_lng, yard_lat, yard_lng')
+      .select('id, status, load_id, driver_name, carrier_id, origin_lat, origin_lng, destination_lat, destination_lng, yard_lat, yard_lng')
       .eq('tracking_token', token)
       .eq('is_active', true)
       .single()
@@ -105,6 +105,26 @@ export async function POST(request: NextRequest) {
       .from('shipment_tracking')
       .update(updatePayload)
       .eq('id', tracking.id)
+
+    // Fire-and-forget: update scorecard counters on status change
+    if (newStatus !== tracking.status && tracking.carrier_id) {
+      const carrierId = tracking.carrier_id as string
+      if (newStatus === 'at_pickup') {
+        void supabase.rpc('increment_scorecard_counter', {
+          p_carrier_id: carrierId,
+          p_column: 'on_time_pickups',
+        })
+      } else if (newStatus === 'delivered') {
+        void supabase.rpc('increment_scorecard_counter', {
+          p_carrier_id: carrierId,
+          p_column: 'on_time_deliveries',
+        })
+        void supabase.rpc('increment_scorecard_counter', {
+          p_carrier_id: carrierId,
+          p_column: 'total_loads_completed',
+        })
+      }
+    }
 
     // Fire-and-forget: notify broker on status change
     if (newStatus !== tracking.status && tracking.load_id) {

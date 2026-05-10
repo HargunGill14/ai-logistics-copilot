@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { rateLimit } from '@/lib/rateLimit'
 import { canBid } from '@/lib/subscription'
 import { sendNewBidEmail } from '@/lib/email'
@@ -10,6 +11,52 @@ const schema = z.object({
   estimated_pickup: z.string().datetime().optional(),
   notes: z.string().max(500).optional(),
 })
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ loadId: string }> },
+) {
+  try {
+    const { loadId } = await params
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || (profile.role !== 'broker' && profile.role !== 'admin')) {
+      return NextResponse.json({ error: 'Brokers only' }, { status: 403 })
+    }
+
+    const service = createServiceClient()
+
+    const { data: bids } = await service
+      .from('load_bids')
+      .select('*, profiles!carrier_id(full_name)')
+      .eq('marketplace_load_id', loadId)
+      .order('submitted_at', { ascending: false })
+
+    if (!bids || bids.length === 0) return NextResponse.json([])
+
+    const carrierIds = [...new Set(bids.map((b) => b.carrier_id as string).filter(Boolean))]
+    const { data: scorecards } = await service
+      .from('carrier_verifications')
+      .select('carrier_id, total_bids, accepted_bids, on_time_pickups, on_time_deliveries, total_loads_completed')
+      .in('carrier_id', carrierIds)
+
+    const scorecardMap = Object.fromEntries((scorecards ?? []).map((s) => [s.carrier_id, s]))
+    const result = bids.map((bid) => ({ ...bid, scorecard: scorecardMap[bid.carrier_id as string] ?? null }))
+
+    return NextResponse.json(result)
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -125,6 +172,12 @@ export async function POST(
     if (insertError) {
       return NextResponse.json({ error: 'Failed to submit bid' }, { status: 500 })
     }
+
+    // Fire-and-forget: increment bid counter
+    void createServiceClient().rpc('increment_scorecard_counter', {
+      p_carrier_id: user.id,
+      p_column: 'total_bids',
+    })
 
     // Fire-and-forget: notify broker of new bid
     Promise.all([

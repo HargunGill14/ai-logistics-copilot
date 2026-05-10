@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { sendBidAcceptedEmail, sendBidRejectedEmail } from '@/lib/email'
 
 const schema = z.object({
@@ -115,6 +116,15 @@ export async function PATCH(
 
         if (rpcError) {
           return NextResponse.json({ error: 'Failed to accept bid' }, { status: 500 })
+        }
+
+        // Fire-and-forget: increment accepted_bids counter
+        if (acceptedBid?.carrier_id) {
+          const service = createServiceClient()
+          void service.rpc('increment_scorecard_counter', {
+            p_carrier_id: acceptedBid.carrier_id,
+            p_column: 'accepted_bids',
+          })
         }
 
         // Fire-and-forget: notify carrier their bid was accepted
