@@ -41,8 +41,8 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Auth pages, onboarding pages, and API routes handle their own auth
-  if (isAuthPath(pathname) || pathname.startsWith('/onboarding') || pathname.startsWith('/api/')) {
+  // Public routes — never redirect away, even for authenticated users
+  if (pathname === '/' || isAuthPath(pathname) || pathname.startsWith('/onboarding') || pathname.startsWith('/api/')) {
     return supabaseResponse
   }
 
