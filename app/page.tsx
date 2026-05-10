@@ -619,9 +619,11 @@ export default async function Home() {
             </div>
             <span className="text-xs font-medium text-slate-500">FreTraq</span>
           </div>
-          <p className="text-xs text-slate-400">
-            © {new Date().getFullYear()} FreTraq. All rights reserved.
-          </p>
+          <div className="flex items-center gap-5 text-xs text-slate-400">
+            <p>© {new Date().getFullYear()} FreTraq. All rights reserved.</p>
+            <Link href="/terms" className="hover:text-slate-700">Terms</Link>
+            <Link href="/privacy" className="hover:text-slate-700">Privacy</Link>
+          </div>
         </div>
       </footer>
     </div>

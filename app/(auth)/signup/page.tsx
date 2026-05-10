@@ -143,12 +143,18 @@ export default function SignupPage() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="justify-center">
+          <CardFooter className="flex-col gap-3">
             <p className="text-sm text-slate-500">
               Already have an account?{' '}
               <Link href="/login" className="font-medium" style={{ color: '#1a3a5c' }}>
                 Sign in
               </Link>
+            </p>
+            <p className="text-xs text-slate-400 text-center">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" className="underline hover:text-slate-600">Terms of Service</Link>
+              {' '}and{' '}
+              <Link href="/privacy" className="underline hover:text-slate-600">Privacy Policy</Link>.
             </p>
           </CardFooter>
         </Card>

@@ -42,7 +42,7 @@ export async function proxy(request: NextRequest) {
   )
 
   // Public routes — never redirect away, even for authenticated users
-  if (pathname === '/' || isAuthPath(pathname) || pathname.startsWith('/onboarding') || pathname.startsWith('/api/')) {
+  if (pathname === '/' || pathname === '/terms' || pathname === '/privacy' || isAuthPath(pathname) || pathname.startsWith('/onboarding') || pathname.startsWith('/api/')) {
     return supabaseResponse
   }
 
