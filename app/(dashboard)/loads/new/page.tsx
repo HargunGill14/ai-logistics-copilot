@@ -2,11 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 export default function NewLoadPage() {
   const router = useRouter()
-  const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,56 +28,31 @@ export default function NewLoadPage() {
     setError('')
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
-
-      let organizationId = profile?.organization_id
-
-      if (!organizationId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .insert({ name: 'My Brokerage' })
-          .select()
-          .single()
-
-        if (org) {
-          organizationId = org.id
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            organization_id: org.id,
-            email: user.email,
-            full_name: user.user_metadata?.full_name || '',
-          })
-        }
-      }
-
-      const { data: load, error: loadError } = await supabase
-        .from('loads')
-        .insert({
-          organization_id: organizationId,
-          created_by: user.id,
+      const res = await fetch('/api/loads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           pickup_location: form.pickup_location,
           delivery_location: form.delivery_location,
           distance_miles: parseFloat(form.distance_miles),
           load_type: form.load_type,
           weight_lbs: parseFloat(form.weight_lbs),
           shipper_rate: parseFloat(form.shipper_rate),
-          status: 'pricing',
-        })
-        .select()
-        .single()
+          notes: form.notes || undefined,
+        }),
+      })
 
-      if (loadError) throw loadError
+      const data = await res.json()
 
-      router.push(`/pricing?loadId=${load.id}`)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong')
+        setLoading(false)
+        return
+      }
+
+      router.push(`/pricing?loadId=${data.id}`)
+    } catch {
+      setError('Something went wrong')
       setLoading(false)
     }
   }
