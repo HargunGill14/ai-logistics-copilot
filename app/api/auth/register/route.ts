@@ -5,7 +5,6 @@ import { createServiceClient } from '@/lib/supabase/service'
 
 const schema = z.object({
   full_name: z.string().min(1).max(100),
-  phone_number: z.string().regex(/^\+1\d{10}$/),
 })
 
 export async function POST(req: NextRequest) {
@@ -26,12 +25,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
 
-    const { full_name, phone_number } = parsed.data
+    const { full_name } = parsed.data
     const service = createServiceClient()
 
     const { error } = await service
       .from('profiles')
-      .upsert({ id: user.id, full_name, phone_number }, { onConflict: 'id' })
+      .upsert({ id: user.id, full_name }, { onConflict: 'id' })
 
     if (error) {
       return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 })
