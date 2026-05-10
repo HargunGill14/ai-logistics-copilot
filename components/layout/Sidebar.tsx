@@ -20,6 +20,7 @@ import {
   MapPin,
   BadgeCheck,
   CreditCard,
+  TrendingUp,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -66,6 +67,7 @@ const brokerMarketplaceSection: NavSection = {
   items: [
     { href: '/marketplace', label: 'Marketplace', icon: Store },
     { href: '/tracking', label: 'Tracking', icon: MapPin },
+    { href: '/financials', label: 'Financials', icon: TrendingUp },
   ],
 }
 

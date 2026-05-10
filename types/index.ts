@@ -207,3 +207,34 @@ export interface LocationPing {
   speed_mph: number | null
   recorded_at: string
 }
+
+export interface FinancialSummary {
+  totalRevenueMTD: number
+  totalLoadsCoveredMTD: number
+  avgMarginPerLoad: number
+  projectedMonthlyRevenue: number
+}
+
+export interface MarginRow {
+  id: string
+  origin: string
+  destination: string
+  pickupDate: string
+  targetRate: number
+  acceptedBid: number
+  marginDollar: number
+  marginPercent: number
+}
+
+export interface MonthlyRevenue {
+  month: string
+  revenue: number
+}
+
+export interface CarrierMarginStat {
+  carrierId: string
+  carrierName: string
+  loadsWorked: number
+  avgMarginDollar: number
+  avgMarginPercent: number
+}
