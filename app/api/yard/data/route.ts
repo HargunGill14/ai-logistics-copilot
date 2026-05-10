@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { rateLimit } from '@/lib/rateLimit'
 
 function createServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (loadsErr) {
-      return NextResponse.json({ error: loadsErr.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to load yard data' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -75,6 +76,10 @@ export async function POST(request: NextRequest) {
     }
     if (!profile || profile.role !== 'yard') {
       return NextResponse.json({ error: 'Yard manager access required' }, { status: 403 })
+    }
+
+    if (!rateLimit(`yard-appt:${user.id}`, 30, 60000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const body = await request.json()
@@ -101,7 +106,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to schedule appointment' }, { status: 500 })
     }
 
     return NextResponse.json({ appointment: data }, { status: 201 })
@@ -119,6 +124,10 @@ export async function PATCH(request: NextRequest) {
     }
     if (!profile || profile.role !== 'yard') {
       return NextResponse.json({ error: 'Yard manager access required' }, { status: 403 })
+    }
+
+    if (!rateLimit(`yard-status:${user.id}`, 60, 60000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const body = await request.json()
@@ -139,7 +148,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', id)
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to update appointment' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

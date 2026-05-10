@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/rateLimit'
 
 const schema = z.object({
   load_id: z.string().uuid(),
@@ -21,6 +22,10 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!rateLimit(`tracking-create:${user.id}`, 10, 60000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const { data: profile, error: profileError } = await supabase

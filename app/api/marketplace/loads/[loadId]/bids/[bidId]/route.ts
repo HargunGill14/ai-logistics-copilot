@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendBidAcceptedEmail, sendBidRejectedEmail } from '@/lib/email'
+import { rateLimit } from '@/lib/rateLimit'
 
 const schema = z.object({
   action: z.enum(['accept', 'reject', 'withdraw']),
@@ -19,6 +20,10 @@ export async function PATCH(
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!rateLimit(`bidaction:${user.id}`, 30, 60000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const { data: profile, error: profileError } = await supabase

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { rateLimit } from '@/lib/rateLimit'
 
 const schema = z.object({
   company_name: z.string().min(1, 'Company name is required').max(100),
@@ -29,6 +30,10 @@ export async function POST(req: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!rateLimit(`onboarding-broker:${user.id}`, 5, 300000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const { data: profile } = await supabase
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
 
     if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
     }
 
     if (profile.organization_id) {

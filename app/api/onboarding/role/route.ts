@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { rateLimit } from '@/lib/rateLimit'
 
 const ALLOWED_ROLES = ['broker', 'carrier'] as const
 type Role = (typeof ALLOWED_ROLES)[number]
@@ -24,6 +25,10 @@ export async function POST(req: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!rateLimit(`onboarding-role:${user.id}`, 10, 300000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     let body: { role?: unknown }
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
       .upsert({ id: user.id, role }, { onConflict: 'id' })
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to save role' }, { status: 500 })
     }
 
     return NextResponse.json({ role })

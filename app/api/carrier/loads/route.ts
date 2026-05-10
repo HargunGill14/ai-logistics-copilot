@@ -37,7 +37,7 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (loadsErr) {
-      return NextResponse.json({ error: loadsErr.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to load carrier data' }, { status: 500 })
     }
 
     const { data: posts, error: postsErr } = await admin

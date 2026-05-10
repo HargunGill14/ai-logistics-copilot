@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { canPostLoad } from '@/lib/subscription'
+import { rateLimit } from '@/lib/rateLimit'
 
 const schema = z.object({
   origin_city: z.string().min(1).max(100),
@@ -27,6 +28,10 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!rateLimit(`postload:${user.id}`, 20, 3600000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const { data: profile, error: profileError } = await supabase
