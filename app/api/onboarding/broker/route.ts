@@ -67,20 +67,30 @@ export async function POST(req: NextRequest) {
     const { company_name, phone_number } = parsed.data
     const svc = serviceClient()
 
+    let orgId = profile.organization_id
+
+    if (orgId) {
+      await svc.from('organizations').update({ name: company_name }).eq('id', orgId)
+    } else {
+      const { data: org, error: orgError } = await svc
+        .from('organizations')
+        .insert({ name: company_name })
+        .select('id')
+        .single()
+
+      if (orgError || !org) {
+        return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 })
+      }
+      orgId = org.id
+    }
+
     const { error: profileError } = await svc
       .from('profiles')
-      .update({ company_name, phone_number, onboarding_complete: true })
+      .update({ company_name, phone_number, organization_id: orgId, onboarding_complete: true })
       .eq('id', user.id)
 
     if (profileError) {
       return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
-    }
-
-    if (profile.organization_id) {
-      await svc
-        .from('organizations')
-        .update({ name: company_name })
-        .eq('id', profile.organization_id)
     }
 
     return NextResponse.json({ success: true })
