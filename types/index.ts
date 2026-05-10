@@ -115,6 +115,8 @@ export interface MarketplaceLoad {
   auto_award: boolean
   posted_at: string
   covered_at: string | null
+  dat_load_id: string | null
+  dat_posted_at: string | null
   created_at: string
 }
 

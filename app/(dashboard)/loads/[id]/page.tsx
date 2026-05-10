@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { BidDecisionButtons } from '@/components/loads/BidDecisionButtons'
+import { PostToDatButton } from '@/components/loads/PostToDatButton'
 import type { BidStatus, LoadBid, MarketplaceLoad, MarketplaceLoadStatus } from '@/types'
 
 interface LoadDetailPageProps {
@@ -157,7 +158,14 @@ export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
               #{load.id.slice(0, 8).toUpperCase()}
             </p>
           </div>
-          <LoadStatusBadge status={load.status} />
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <LoadStatusBadge status={load.status} />
+            <PostToDatButton
+              loadId={load.id}
+              datLoadId={load.dat_load_id}
+              datPostedAt={load.dat_posted_at}
+            />
+          </div>
         </div>
       </div>
 
@@ -165,7 +173,10 @@ export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
         <LoadFact label="Pickup" value={formatDateTime(load.pickup_date)} />
         <LoadFact label="Equipment" value={equipmentLabels[load.equipment_type]} />
         <LoadFact label="Target Rate" value={formatCurrency(load.target_rate)} />
-        <LoadFact label="Bids Received" value={String(enrichedBids.length)} />
+        <LoadFact
+          label="DAT Status"
+          value={load.dat_load_id ? `Posted #${load.dat_load_id}` : 'Not posted'}
+        />
       </div>
 
       {load.status === 'covered' && acceptedBid && (
