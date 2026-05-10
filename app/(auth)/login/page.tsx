@@ -1,13 +1,20 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
+
+function formatE164(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  return null
+}
 
 export default function LoginPage() {
   return (
@@ -17,33 +24,70 @@ export default function LoginPage() {
   )
 }
 
+type Step = 'phone' | 'otp'
+
 function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [step, setStep] = useState<Step>('phone')
+  const [phone, setPhone] = useState('')
+  const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const confirmationFailed = searchParams.get('error') === 'confirmation_failed'
   const supabase = createClient()
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+    const e164 = formatE164(phone)
+    if (!e164) {
+      setError('Enter a valid US phone number (e.g. 555-867-5309).')
+      return
     }
+
+    setLoading(true)
+    const { error: otpError } = await supabase.auth.signInWithOtp({ phone: e164 })
+    setLoading(false)
+
+    if (otpError) {
+      setError(otpError.message)
+      return
+    }
+
+    setStep('otp')
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    const e164 = formatE164(phone)
+    if (!e164) {
+      setError('Phone number invalid.')
+      return
+    }
+
+    setLoading(true)
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      phone: e164,
+      token: otp.trim(),
+      type: 'sms',
+    })
+    setLoading(false)
+
+    if (verifyError) {
+      setError(verifyError.message)
+      return
+    }
+
+    router.push('/dashboard')
+    router.refresh()
+  }
+
+  function handleResend() {
+    setStep('phone')
+    setOtp('')
+    setError('')
   }
 
   return (
@@ -64,62 +108,108 @@ function LoginForm() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your broker account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {confirmationFailed && (
-              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
-                That confirmation link is invalid or has already been used. Sign in below.
-              </div>
-            )}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              {error && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
-                  {error}
-                </div>
-              )}
-              <Button
-                type="submit"
-                className="w-full text-white"
-                style={{backgroundColor: '#1a3a5c'}}
-                disabled={loading}
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="justify-center">
-            <p className="text-sm text-slate-500">
-              New here?{' '}
-              <Link href="/signup" className="font-medium" style={{color: '#1a3a5c'}}>
-                Sign up
-              </Link>
-            </p>
-          </CardFooter>
+          {step === 'phone' ? (
+            <>
+              <CardHeader>
+                <CardTitle className="text-xl">Welcome back</CardTitle>
+                <CardDescription>Enter your phone number to sign in.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSendCode} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="(555) 867-5309"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full text-white"
+                    style={{ backgroundColor: '#1a3a5c' }}
+                    disabled={loading}
+                  >
+                    {loading ? 'Sending code…' : 'Send verification code'}
+                  </Button>
+                </form>
+              </CardContent>
+              <CardFooter className="justify-center">
+                <p className="text-sm text-slate-500">
+                  New here?{' '}
+                  <Link href="/signup" className="font-medium" style={{ color: '#1a3a5c' }}>
+                    Sign up
+                  </Link>
+                </p>
+              </CardFooter>
+            </>
+          ) : (
+            <>
+              <CardHeader>
+                <CardTitle className="text-xl">Enter your code</CardTitle>
+                <CardDescription>
+                  Sent to {formatE164(phone) ?? phone}. Check your messages.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleVerify} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="otp">6-digit code</Label>
+                    <Input
+                      id="otp"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="123456"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full text-white"
+                    style={{ backgroundColor: '#1a3a5c' }}
+                    disabled={loading || otp.length < 6}
+                  >
+                    {loading ? 'Verifying…' : 'Sign in'}
+                  </Button>
+                </form>
+              </CardContent>
+              <CardFooter className="justify-center">
+                <p className="text-sm text-slate-500">
+                  Wrong number or didn&apos;t get it?{' '}
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="font-medium underline underline-offset-2"
+                    style={{ color: '#1a3a5c' }}
+                  >
+                    Go back
+                  </button>
+                </p>
+              </CardFooter>
+            </>
+          )}
         </Card>
       </div>
     </div>
