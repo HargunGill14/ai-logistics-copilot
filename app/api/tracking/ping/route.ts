@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { rateLimit } from '@/lib/rateLimit'
+import { sendLoadStatusEmail } from '@/lib/email'
 
 const schema = z.object({
   token: z.string().length(64),
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const { data: tracking, error: lookupError } = await supabase
       .from('shipment_tracking')
-      .select('id, status, origin_lat, origin_lng, destination_lat, destination_lng, yard_lat, yard_lng')
+      .select('id, status, load_id, driver_name, origin_lat, origin_lng, destination_lat, destination_lng, yard_lat, yard_lng')
       .eq('tracking_token', token)
       .eq('is_active', true)
       .single()
@@ -104,6 +105,40 @@ export async function POST(request: NextRequest) {
       .from('shipment_tracking')
       .update(updatePayload)
       .eq('id', tracking.id)
+
+    // Fire-and-forget: notify broker on status change
+    if (newStatus !== tracking.status && tracking.load_id) {
+      void (async () => {
+        try {
+          const { data: load } = await supabase
+            .from('loads')
+            .select('created_by, pickup_location, delivery_location')
+            .eq('id', tracking.load_id)
+            .single()
+          if (!load?.created_by) return
+          const { data: broker } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', load.created_by)
+            .single()
+          if (broker?.email) {
+            const parts = (load.pickup_location as string).split(',')
+            const destParts = (load.delivery_location as string).split(',')
+            await sendLoadStatusEmail({
+              brokerEmail: broker.email,
+              newStatus,
+              driverName: (tracking.driver_name as string | null) ?? 'Driver',
+              originCity: parts[0]?.trim() ?? '',
+              originState: parts[1]?.trim() ?? '',
+              destinationCity: destParts[0]?.trim() ?? '',
+              destinationState: destParts[1]?.trim() ?? '',
+              currentLat: lat,
+              currentLng: lng,
+            })
+          }
+        } catch {}
+      })()
+    }
 
     return NextResponse.json({ ok: true, status: newStatus })
   } catch (error) {

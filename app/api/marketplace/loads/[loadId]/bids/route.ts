@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { canBid } from '@/lib/subscription'
+import { sendNewBidEmail } from '@/lib/email'
 
 const schema = z.object({
   bid_amount: z.number().positive().max(99999),
@@ -68,7 +69,7 @@ export async function POST(
 
     const { data: load, error: loadError } = await supabase
       .from('marketplace_loads')
-      .select('id, status, bid_deadline')
+      .select('id, status, bid_deadline, broker_id, origin_city, origin_state, destination_city, destination_state, pickup_date')
       .eq('id', loadId)
       .single()
 
@@ -124,6 +125,28 @@ export async function POST(
     if (insertError) {
       return NextResponse.json({ error: 'Failed to submit bid' }, { status: 500 })
     }
+
+    // Fire-and-forget: notify broker of new bid
+    Promise.all([
+      supabase.from('profiles').select('email, full_name').eq('id', load.broker_id).single(),
+      supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    ]).then(([brokerRes, carrierRes]) => {
+      const brokerEmail = brokerRes.data?.email
+      const carrierName = carrierRes.data?.full_name ?? 'A carrier'
+      if (brokerEmail) {
+        sendNewBidEmail({
+          brokerEmail,
+          carrierName,
+          bidAmount: data.bid_amount,
+          estimatedPickup: data.estimated_pickup ?? null,
+          originCity: load.origin_city as string,
+          originState: load.origin_state as string,
+          destinationCity: load.destination_city as string,
+          destinationState: load.destination_state as string,
+          loadId,
+        })
+      }
+    }).catch(() => {})
 
     return NextResponse.json(bid, { status: 201 })
   } catch {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { sendBidAcceptedEmail, sendBidRejectedEmail } from '@/lib/email'
 
 const schema = z.object({
   action: z.enum(['accept', 'reject', 'withdraw']),
@@ -84,7 +85,7 @@ export async function PATCH(
 
       const { data: load, error: loadError } = await supabase
         .from('marketplace_loads')
-        .select('id, status, organization_id')
+        .select('id, status, organization_id, broker_id, origin_city, origin_state, destination_city, destination_state, pickup_date')
         .eq('id', loadId)
         .single()
 
@@ -101,6 +102,12 @@ export async function PATCH(
       }
 
       if (action === 'accept') {
+        const { data: acceptedBid } = await supabase
+          .from('load_bids')
+          .select('carrier_id')
+          .eq('id', bidId)
+          .single()
+
         const { error: rpcError } = await supabase.rpc('accept_bid', {
           p_bid_id: bidId,
           p_load_id: loadId,
@@ -110,13 +117,35 @@ export async function PATCH(
           return NextResponse.json({ error: 'Failed to accept bid' }, { status: 500 })
         }
 
+        // Fire-and-forget: notify carrier their bid was accepted
+        if (acceptedBid?.carrier_id) {
+          Promise.all([
+            supabase.from('profiles').select('email, full_name').eq('id', acceptedBid.carrier_id).single(),
+            supabase.from('profiles').select('full_name, email').eq('id', user.id).single(),
+          ]).then(([carrierRes, brokerRes]) => {
+            if (carrierRes.data?.email) {
+              sendBidAcceptedEmail({
+                carrierEmail: carrierRes.data.email,
+                carrierName: carrierRes.data.full_name ?? 'Carrier',
+                originCity: load.origin_city as string,
+                originState: load.origin_state as string,
+                destinationCity: load.destination_city as string,
+                destinationState: load.destination_state as string,
+                pickupDate: load.pickup_date as string,
+                brokerName: brokerRes.data?.full_name ?? 'Your broker',
+                brokerEmail: brokerRes.data?.email ?? '',
+              })
+            }
+          }).catch(() => {})
+        }
+
         return NextResponse.json({ success: true })
       }
 
       if (action === 'reject') {
         const { data: bid, error: bidError } = await supabase
           .from('load_bids')
-          .select('id, status, marketplace_load_id')
+          .select('id, status, marketplace_load_id, carrier_id')
           .eq('id', bidId)
           .eq('marketplace_load_id', loadId)
           .single()
@@ -137,6 +166,27 @@ export async function PATCH(
         if (updateError) {
           return NextResponse.json({ error: 'Failed to reject bid' }, { status: 500 })
         }
+
+        // Fire-and-forget: notify carrier their bid was rejected
+        void (async () => {
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('email, full_name')
+              .eq('id', bid.carrier_id)
+              .single()
+            if (data?.email) {
+              await sendBidRejectedEmail({
+                carrierEmail: data.email,
+                carrierName: data.full_name ?? 'Carrier',
+                originCity: load.origin_city as string,
+                originState: load.origin_state as string,
+                destinationCity: load.destination_city as string,
+                destinationState: load.destination_state as string,
+              })
+            }
+          } catch {}
+        })()
 
         return NextResponse.json({ success: true })
       }
