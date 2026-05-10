@@ -20,6 +20,22 @@ const datPostLimiter = redis
     })
   : null
 
+const importLoadsLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, '1 h'),
+      prefix: 'fretraq:import-loads',
+    })
+  : null
+
+const importCarriersLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, '1 h'),
+      prefix: 'fretraq:import-carriers',
+    })
+  : null
+
 export async function limitDatPost(userId: string): Promise<{
   allowed: boolean
   configured: boolean
@@ -29,5 +45,29 @@ export async function limitDatPost(userId: string): Promise<{
   }
 
   const result = await datPostLimiter.limit(userId)
+  return { allowed: result.success, configured: true }
+}
+
+export async function limitImportLoads(userId: string): Promise<{
+  allowed: boolean
+  configured: boolean
+}> {
+  if (!importLoadsLimiter) {
+    return { allowed: false, configured: false }
+  }
+
+  const result = await importLoadsLimiter.limit(userId)
+  return { allowed: result.success, configured: true }
+}
+
+export async function limitImportCarriers(userId: string): Promise<{
+  allowed: boolean
+  configured: boolean
+}> {
+  if (!importCarriersLimiter) {
+    return { allowed: false, configured: false }
+  }
+
+  const result = await importCarriersLimiter.limit(userId)
   return { allowed: result.success, configured: true }
 }

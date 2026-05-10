@@ -240,3 +240,38 @@ export interface CarrierMarginStat {
   avgMarginDollar: number
   avgMarginPercent: number
 }
+
+export interface BrokerCarrier {
+  id: string
+  organization_id: string
+  broker_id: string
+  carrier_name: string
+  contact_name: string | null
+  email: string | null
+  phone: string | null
+  mc_number: string | null
+  usdot_number: string | null
+  equipment_type: EquipmentType | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ImportErrorCode =
+  | 'validation_failed'
+  | 'insert_failed'
+  | 'invalid_date'
+  | 'invalid_equipment'
+
+export interface ImportRowError {
+  row: number
+  code: ImportErrorCode
+  message: string
+  field?: string
+}
+
+export interface ImportResult {
+  imported: number
+  failed: number
+  errors: ImportRowError[]
+}
