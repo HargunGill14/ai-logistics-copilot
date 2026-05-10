@@ -85,7 +85,13 @@ export interface NegotiationResult {
 }
 
 export type EquipmentType = 'dry_van' | 'reefer' | 'flatbed' | 'step_deck' | 'power_only' | 'tanker'
-export type MarketplaceLoadStatus = 'posted' | 'covered' | 'expired' | 'cancelled'
+export type MarketplaceLoadStatus =
+  | 'posted'
+  | 'covered'
+  | 'in_transit'
+  | 'delivered'
+  | 'cancelled'
+  | 'expired'
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
 
 export interface MarketplaceLoad {

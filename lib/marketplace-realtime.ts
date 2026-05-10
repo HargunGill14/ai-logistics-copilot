@@ -17,7 +17,7 @@ export interface MarketplaceLoad {
   target_rate: number
   max_rate: number | null
   bid_deadline: string | null
-  status: 'posted' | 'covered' | 'expired' | 'cancelled'
+  status: 'posted' | 'covered' | 'in_transit' | 'delivered' | 'cancelled' | 'expired'
   auto_award: boolean
   posted_at: string
   covered_at: string | null

@@ -1,369 +1,343 @@
-'use client'
+import Link from 'next/link'
+import { notFound, redirect } from 'next/navigation'
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Clock, Package } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { BidDecisionButtons } from '@/components/loads/BidDecisionButtons'
+import type { BidStatus, LoadBid, MarketplaceLoad, MarketplaceLoadStatus } from '@/types'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Load, Negotiation } from '@/types'
-
-const statusStyles: Record<string, string> = {
-  draft: 'bg-slate-100 text-slate-600',
-  pricing: 'bg-blue-100 text-blue-700',
-  negotiating: 'bg-purple-100 text-purple-700',
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
+interface LoadDetailPageProps {
+  params: Promise<{ id: string }>
 }
 
-const riskStyles: Record<string, string> = {
-  low: 'text-green-600',
-  medium: 'text-amber-600',
-  high: 'text-red-600',
+interface CarrierProfileRow {
+  id: string
+  full_name: string | null
 }
 
-const loadTypeLabels: Record<string, string> = {
+interface CarrierVerificationRow {
+  carrier_id: string
+  trust_score: number
+  verification_status: string
+}
+
+interface BidWithCarrier extends LoadBid {
+  carrier_name: string
+  trust_score: number | null
+  verification_status: string | null
+}
+
+const equipmentLabels: Record<MarketplaceLoad['equipment_type'], string> = {
   dry_van: 'Dry Van',
   reefer: 'Reefer',
   flatbed: 'Flatbed',
   step_deck: 'Step Deck',
+  power_only: 'Power Only',
+  tanker: 'Tanker',
 }
 
-const negotiationStatusStyles: Record<string, string> = {
-  pending: 'bg-slate-100 text-slate-600',
-  awaiting_reply: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-600',
+const loadStatusStyles: Record<MarketplaceLoadStatus, string> = {
+  posted: 'bg-blue-100 text-blue-700 border-blue-200',
+  covered: 'bg-green-100 text-green-700 border-green-200',
+  in_transit: 'bg-teal-100 text-teal-700 border-teal-200',
+  delivered: 'bg-slate-100 text-slate-700 border-slate-200',
+  cancelled: 'bg-red-100 text-red-700 border-red-200',
+  expired: 'bg-amber-100 text-amber-700 border-amber-200',
 }
 
-export default function LoadDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const supabase = createClient()
-  const id = params.id as string
+const bidStatusStyles: Record<BidStatus, string> = {
+  pending: 'bg-blue-100 text-blue-700 border-blue-200',
+  accepted: 'bg-green-100 text-green-700 border-green-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
+  withdrawn: 'bg-slate-100 text-slate-600 border-slate-200',
+}
 
-  const [load, setLoad] = useState<Load | null>(null)
-  const [negotiations, setNegotiations] = useState<Negotiation[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [updatingStatus, setUpdatingStatus] = useState(false)
-  const [statusError, setStatusError] = useState('')
-  const [copied, setCopied] = useState<string | null>(null)
+export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  useEffect(() => {
-    fetchData()
-  }, [id])
-
-  async function fetchData() {
-    try {
-      const [{ data: loadData, error: loadErr }, { data: negsData }] = await Promise.all([
-        supabase.from('loads').select('*').eq('id', id).single(),
-        supabase.from('negotiations').select('*').eq('load_id', id).order('created_at', { ascending: false }),
-      ])
-
-      if (loadErr || !loadData) throw new Error('Load not found')
-      setLoad(loadData)
-      setNegotiations(negsData || [])
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load details')
-    } finally {
-      setLoading(false)
-    }
+  if (!user) {
+    redirect('/login')
   }
 
-  async function updateStatus(newStatus: Load['status']) {
-    if (!load) return
-    setUpdatingStatus(true)
-    setStatusError('')
-    const { error: updateErr } = await supabase
-      .from('loads')
-      .update({ status: newStatus })
-      .eq('id', id)
-    if (updateErr) {
-      setStatusError('Failed to update status. Please try again.')
-    } else {
-      setLoad({ ...load, status: newStatus })
-    }
-    setUpdatingStatus(false)
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile) {
+    redirect('/login')
   }
 
-  async function handleCopy(text: string, key: string) {
-    await navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+  const { data: loadRow, error: loadError } = await supabase
+    .from('marketplace_loads')
+    .select('*')
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .single()
+
+  if (loadError || !loadRow) {
+    notFound()
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-slate-500 text-sm">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-          Loading load details...
-        </div>
-      </div>
+  const load = loadRow as MarketplaceLoad
+  const service = createServiceClient()
+
+  const { data: bidRows } = await service
+    .from('load_bids')
+    .select('*')
+    .eq('marketplace_load_id', load.id)
+    .order('submitted_at', { ascending: false })
+
+  const bids = (bidRows ?? []) as LoadBid[]
+  const carrierIds = [...new Set(bids.map((bid) => bid.carrier_id))]
+
+  let carrierNameMap = new Map<string, string>()
+  let verificationMap = new Map<string, CarrierVerificationRow>()
+
+  if (carrierIds.length > 0) {
+    const [{ data: carrierRows }, { data: verificationRows }] = await Promise.all([
+      service
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', carrierIds),
+      service
+        .from('carrier_verifications')
+        .select('carrier_id, trust_score, verification_status')
+        .in('carrier_id', carrierIds),
+    ])
+
+    carrierNameMap = new Map(
+      ((carrierRows ?? []) as CarrierProfileRow[]).map((carrier) => [
+        carrier.id,
+        carrier.full_name ?? 'Carrier',
+      ]),
+    )
+    verificationMap = new Map(
+      ((verificationRows ?? []) as CarrierVerificationRow[]).map((verification) => [
+        verification.carrier_id,
+        verification,
+      ]),
     )
   }
 
-  if (error || !load) {
-    return (
-      <div className="max-w-3xl">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600 text-sm mb-4">
-          {error || 'Load not found'}
-        </div>
-        <button
-          onClick={() => router.push('/loads')}
-          className="text-sm text-slate-600 hover:text-slate-900">
-          ← Back to loads
-        </button>
-      </div>
-    )
-  }
+  const enrichedBids: BidWithCarrier[] = bids.map((bid) => {
+    const verification = verificationMap.get(bid.carrier_id)
+    return {
+      ...bid,
+      carrier_name: carrierNameMap.get(bid.carrier_id) ?? 'Carrier',
+      trust_score: verification?.trust_score ?? null,
+      verification_status: verification?.verification_status ?? null,
+    }
+  })
 
-  const hasPricing = load.carrier_cost != null && load.suggested_rate != null
+  const acceptedBid = enrichedBids.find((bid) => bid.status === 'accepted') ?? null
 
   return (
-    <div className="max-w-4xl">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <button
-            onClick={() => router.push('/loads')}
-            className="text-xs text-slate-400 hover:text-slate-600 mb-2 flex items-center gap-1">
-            ← Back to loads
-          </button>
-          <h1 className="text-xl font-semibold text-slate-900">
-            {load.pickup_location} → {load.delivery_location}
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5 font-mono">#{load.id.slice(0, 8).toUpperCase()}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[load.status]}`}>
-            {load.status}
-          </span>
-          {load.status === 'draft' || load.status === 'pricing' ? (
-            <button
-              onClick={() => router.push(`/pricing?loadId=${load.id}`)}
-              className="text-sm px-4 py-1.5 rounded-lg font-medium text-white"
-              style={{ backgroundColor: '#1a3a5c' }}>
-              Run AI Pricing
-            </button>
-          ) : load.status === 'negotiating' || load.status === 'active' ? (
-            <button
-              onClick={() => router.push(`/negotiate?loadId=${load.id}`)}
-              className="text-sm px-4 py-1.5 rounded-lg font-medium text-white"
-              style={{ backgroundColor: '#1a3a5c' }}>
-              Open Negotiation
-            </button>
-          ) : null}
+    <div>
+      <div className="mb-6">
+        <Link
+          href="/loads"
+          className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-[#1a3a5c]"
+        >
+          <ArrowLeft size={15} />
+          Back to loads
+        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-slate-900">
+              {load.origin_city}, {load.origin_state}
+              <ArrowRight size={17} className="text-slate-400" />
+              {load.destination_city}, {load.destination_state}
+            </h1>
+            <p className="mt-1 font-mono text-xs text-slate-400">
+              #{load.id.slice(0, 8).toUpperCase()}
+            </p>
+          </div>
+          <LoadStatusBadge status={load.status} />
         </div>
       </div>
 
-      <div className="space-y-4">
-        {/* Load Details */}
-        <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4">Load Details</h2>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Pickup</span>
-              <span className="font-medium text-slate-900">{load.pickup_location}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Delivery</span>
-              <span className="font-medium text-slate-900">{load.delivery_location}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Load type</span>
-              <span className="font-medium text-slate-900">{loadTypeLabels[load.load_type] || load.load_type}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Distance</span>
-              <span className="font-medium text-slate-900">{load.distance_miles.toLocaleString()} mi</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Weight</span>
-              <span className="font-medium text-slate-900">{load.weight_lbs.toLocaleString()} lbs</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Created</span>
-              <span className="font-medium text-slate-900">
-                {new Date(load.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
-            </div>
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <LoadFact label="Pickup" value={formatDateTime(load.pickup_date)} />
+        <LoadFact label="Equipment" value={equipmentLabels[load.equipment_type]} />
+        <LoadFact label="Target Rate" value={formatCurrency(load.target_rate)} />
+        <LoadFact label="Bids Received" value={String(enrichedBids.length)} />
+      </div>
+
+      {load.status === 'covered' && acceptedBid && (
+        <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-green-800">
+          <div className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 size={18} />
+            Covered by {acceptedBid.carrier_name}
+          </div>
+          <p className="mt-1 text-sm text-green-700">
+            Winning bid: {formatCurrency(acceptedBid.bid_amount)}
+            {load.covered_at ? ` · Covered ${formatDateTime(load.covered_at)}` : ''}
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Carrier Bids</h2>
+            <p className="text-xs text-slate-500">
+              {enrichedBids.length} {enrichedBids.length === 1 ? 'bid' : 'bids'} received
+            </p>
           </div>
         </div>
 
-        {/* Pricing */}
-        {hasPricing ? (
-          <div className="bg-white rounded-lg border border-slate-200 p-5">
-            <h2 className="text-sm font-semibold text-slate-900 mb-4">AI Pricing Analysis</h2>
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500 mb-1">Shipper rate</p>
-                <p className="text-lg font-semibold text-slate-900">${load.shipper_rate.toLocaleString()}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500 mb-1">Carrier cost</p>
-                <p className="text-lg font-semibold text-slate-900">${load.carrier_cost!.toLocaleString()}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500 mb-1">Suggested rate</p>
-                <p className="text-lg font-semibold text-slate-900">${load.suggested_rate!.toLocaleString()}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500 mb-1">Margin</p>
-                <p className={`text-lg font-semibold ${
-                  (load.margin_percentage ?? 0) >= 15
-                    ? 'text-green-600'
-                    : (load.margin_percentage ?? 0) >= 8
-                    ? 'text-amber-600'
-                    : 'text-red-600'
-                }`}>
-                  {load.margin_percentage?.toFixed(1)}%
-                </p>
-                <p className="text-xs text-slate-400">${load.margin_amount?.toLocaleString()}</p>
-              </div>
+        {enrichedBids.length === 0 ? (
+          <div className="px-6 py-14 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Clock size={22} />
             </div>
-            {load.risk_level && (
-              <div className="flex items-center gap-2 text-sm border-t border-slate-100 pt-4">
-                <span className="text-slate-500">Risk level:</span>
-                <span className={`font-medium capitalize ${riskStyles[load.risk_level]}`}>
-                  {load.risk_level}
-                </span>
-              </div>
-            )}
-            {load.ai_recommendation && (
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-xs font-medium text-slate-500 mb-1.5">AI recommendation</p>
-                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg px-3 py-2.5">
-                  {load.ai_recommendation}
-                </p>
-              </div>
-            )}
+            <h3 className="text-base font-semibold text-slate-900">No bids yet</h3>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+              Carrier bids will appear here as soon as they are submitted.
+            </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Shipper rate: ${load.shipper_rate.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-1">AI pricing not yet run for this load</p>
-              </div>
-              <button
-                onClick={() => router.push(`/pricing?loadId=${load.id}`)}
-                className="text-sm px-4 py-2 rounded-lg font-medium border border-slate-200 text-slate-600 hover:bg-slate-50">
-                Run AI Pricing
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Negotiations */}
-        <div className="bg-white rounded-lg border border-slate-200">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Negotiation History</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{negotiations.length} {negotiations.length === 1 ? 'thread' : 'threads'}</p>
-            </div>
-            {hasPricing && (
-              <button
-                onClick={() => router.push(`/negotiate?loadId=${load.id}`)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
-                + New negotiation
-              </button>
-            )}
-          </div>
-
-          {negotiations.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm text-slate-400">No negotiation threads yet</p>
-              {hasPricing && (
-                <button
-                  onClick={() => router.push(`/negotiate?loadId=${load.id}`)}
-                  className="mt-2 text-xs font-medium"
-                  style={{ color: '#1a3a5c' }}>
-                  Generate negotiation emails →
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {negotiations.map((neg) => (
-                <div key={neg.id} className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${negotiationStatusStyles[neg.status]}`}>
-                        {neg.status.replace('_', ' ')}
-                      </span>
-                      {neg.counteroffer_price && (
-                        <span className="ml-2 text-xs text-slate-500">
-                          Counteroffer: ${neg.counteroffer_price.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      {new Date(neg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-
-                  {neg.shipper_email && (
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-medium text-slate-600">Shipper email</p>
-                        <button
-                          onClick={() => handleCopy(neg.shipper_email!, `shipper-${neg.id}`)}
-                          className="text-xs text-slate-400 hover:text-slate-600">
-                          {copied === `shipper-${neg.id}` ? '✓ Copied' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans bg-slate-50 rounded p-3 leading-relaxed max-h-40 overflow-y-auto">
-                        {neg.shipper_email}
-                      </pre>
-                    </div>
-                  )}
-
-                  {neg.carrier_message && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-medium text-slate-600">Carrier message</p>
-                        <button
-                          onClick={() => handleCopy(neg.carrier_message!, `carrier-${neg.id}`)}
-                          className="text-xs text-slate-400 hover:text-slate-600">
-                          {copied === `carrier-${neg.id}` ? '✓ Copied' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans bg-slate-50 rounded p-3 leading-relaxed max-h-32 overflow-y-auto">
-                        {neg.carrier_message}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Status Controls */}
-        <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Update Status</h2>
-          {statusError && (
-            <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {statusError}
-            </div>
-          )}
-          <div className="flex gap-2 flex-wrap">
-            {(['draft', 'pricing', 'negotiating', 'active', 'completed'] as Load['status'][]).map((s) => (
-              <button
-                key={s}
-                disabled={load.status === s || updatingStatus}
-                onClick={() => updateStatus(s)}
-                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors disabled:opacity-40 capitalize
-                  ${load.status === s
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}>
-                {s}
-              </button>
+          <div className="divide-y divide-slate-100">
+            {enrichedBids.map((bid) => (
+              <BidCard key={bid.id} load={load} bid={bid} />
             ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
+}
+
+function BidCard({ load, bid }: { load: MarketplaceLoad; bid: BidWithCarrier }) {
+  const isAccepted = bid.status === 'accepted'
+  const canAct = load.status === 'posted' && bid.status === 'pending'
+
+  return (
+    <div className={`p-5 ${isAccepted ? 'bg-green-50/80' : 'bg-white'}`}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">{bid.carrier_name}</h3>
+            <TrustScoreBadge score={bid.trust_score} />
+            <BidStatusBadge status={bid.status} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+            <BidFact label="Bid Amount" value={formatCurrency(bid.bid_amount)} emphasis />
+            <BidFact
+              label="Estimated Pickup"
+              value={bid.estimated_pickup ? formatDateTime(bid.estimated_pickup) : 'Not provided'}
+            />
+            <BidFact label="Submitted" value={formatDateTime(bid.submitted_at)} />
+          </div>
+
+          {bid.notes && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+              {bid.notes}
+            </div>
+          )}
+        </div>
+
+        {canAct && (
+          <div className="lg:w-52">
+            <BidDecisionButtons loadId={load.id} bidId={bid.id} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LoadFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">
+        {label === 'Pickup' ? <CalendarClock size={13} /> : <Package size={13} />}
+        {label}
+      </div>
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function BidFact({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-0.5 font-medium ${emphasis ? 'text-lg tabular-nums text-[#1a3a5c]' : 'text-slate-900'}`}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function LoadStatusBadge({ status }: { status: MarketplaceLoadStatus }) {
+  return (
+    <Badge
+      variant="outline"
+      className={`capitalize ${loadStatusStyles[status] ?? 'border-slate-200 bg-slate-100 text-slate-600'}`}
+    >
+      {status.replace('_', ' ')}
+    </Badge>
+  )
+}
+
+function BidStatusBadge({ status }: { status: BidStatus }) {
+  return (
+    <Badge
+      variant="outline"
+      className={`capitalize ${bidStatusStyles[status] ?? 'border-slate-200 bg-slate-100 text-slate-600'}`}
+    >
+      {status}
+    </Badge>
+  )
+}
+
+function TrustScoreBadge({ score }: { score: number | null }) {
+  const tone =
+    score === null
+      ? 'border-slate-200 bg-slate-100 text-slate-600'
+      : score >= 70
+        ? 'border-green-200 bg-green-100 text-green-700'
+        : score >= 40
+          ? 'border-amber-200 bg-amber-100 text-amber-700'
+          : 'border-red-200 bg-red-100 text-red-700'
+
+  const label =
+    score === null
+      ? 'Trust unknown'
+      : score >= 70
+        ? `Trust ${score}`
+        : score >= 40
+          ? `Caution ${score}`
+          : `Low trust ${score}`
+
+  return (
+    <Badge variant="outline" className={tone}>
+      {label}
+    </Badge>
+  )
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(iso))
 }

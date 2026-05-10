@@ -1,134 +1,108 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { Load } from '@/types'
+import { redirect } from 'next/navigation'
+import { ArrowRight, Inbox, Package, Plus } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
-  Search,
-  SearchX,
-  Inbox,
-  Calculator,
-  MessageSquare,
-  Plus,
-} from 'lucide-react'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { createClient } from '@/lib/supabase/server'
+import type { MarketplaceLoad, MarketplaceLoadStatus } from '@/types'
 
-const loadTypeLabels: Record<string, string> = {
+interface LoadWithBidCount extends MarketplaceLoad {
+  bid_count: number
+}
+
+interface BidCountRow {
+  marketplace_load_id: string
+}
+
+const equipmentLabels: Record<MarketplaceLoad['equipment_type'], string> = {
   dry_van: 'Dry Van',
   reefer: 'Reefer',
   flatbed: 'Flatbed',
   step_deck: 'Step Deck',
+  power_only: 'Power Only',
+  tanker: 'Tanker',
 }
 
-type StatusFilterValue = 'all' | Load['status']
+const statusStyles: Record<MarketplaceLoadStatus, string> = {
+  posted: 'bg-blue-100 text-blue-700 border-blue-200',
+  covered: 'bg-green-100 text-green-700 border-green-200',
+  in_transit: 'bg-teal-100 text-teal-700 border-teal-200',
+  delivered: 'bg-slate-100 text-slate-700 border-slate-200',
+  cancelled: 'bg-red-100 text-red-700 border-red-200',
+  expired: 'bg-amber-100 text-amber-700 border-amber-200',
+}
 
-const statusFilters: { value: StatusFilterValue; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'pricing', label: 'Pricing' },
-  { value: 'negotiating', label: 'Negotiating' },
-  { value: 'active', label: 'Active' },
-  { value: 'completed', label: 'Completed' },
-]
+export default async function LoadsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-export default function LoadsPage() {
-  const [loads, setLoads] = useState<Load[]>([])
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState('')
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all')
-  const router = useRouter()
-  const supabase = createClient()
-
-  useEffect(() => {
-    fetchLoads()
-  }, [])
-
-  async function fetchLoads() {
-    try {
-      const { data, error } = await supabase
-        .from('loads')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      setLoads(data ?? [])
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load loads')
-    } finally {
-      setLoading(false)
-    }
+  if (!user) {
+    redirect('/login')
   }
 
-  const filtered = loads.filter((load) => {
-    const matchesSearch =
-      search === '' ||
-      load.pickup_location.toLowerCase().includes(search.toLowerCase()) ||
-      load.delivery_location.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus =
-      statusFilter === 'all' || load.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  let loads: LoadWithBidCount[] = []
+  let fetchError: string | null = null
 
-  function clearFilters() {
-    setSearch('')
-    setStatusFilter('all')
+  try {
+    const { data: loadRows, error: loadsError } = await supabase
+      .from('marketplace_loads')
+      .select('*')
+      .eq('broker_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (loadsError) throw loadsError
+
+    const marketplaceLoads = (loadRows ?? []) as MarketplaceLoad[]
+    const loadIds = marketplaceLoads.map((load) => load.id)
+    const bidCounts = new Map<string, number>()
+
+    if (loadIds.length > 0) {
+      const { data: bidRows, error: bidsError } = await supabase
+        .from('load_bids')
+        .select('marketplace_load_id')
+        .in('marketplace_load_id', loadIds)
+
+      if (bidsError) throw bidsError
+
+      for (const bid of (bidRows ?? []) as BidCountRow[]) {
+        bidCounts.set(
+          bid.marketplace_load_id,
+          (bidCounts.get(bid.marketplace_load_id) ?? 0) + 1,
+        )
+      }
+    }
+
+    loads = marketplaceLoads.map((load) => ({
+      ...load,
+      bid_count: bidCounts.get(load.id) ?? 0,
+    }))
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : 'Failed to load posted loads'
   }
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Load Management</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Posted Loads</h1>
           <p className="text-sm text-slate-500">
-            {loading
-              ? 'Loading loads…'
-              : `${filtered.length} of ${loads.length} ${loads.length === 1 ? 'load' : 'loads'}`}
+            Manage marketplace loads and review carrier bids.
           </p>
         </div>
-        <a
-          href="/loads/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a3a5c] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1a3a5c]/90"
-        >
-          <Plus size={16} />
-          New Load
-        </a>
-      </div>
-
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search
-            size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="text"
-            placeholder="Search by pickup or delivery…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-[#1a3a5c]/40 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/10"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {statusFilters.map((opt) => {
-            const isActive = statusFilter === opt.value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setStatusFilter(opt.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-[#1a3a5c] text-white shadow-sm'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
+        <Button asChild className="rounded-lg bg-[#1a3a5c] text-white hover:bg-[#1a3a5c]/90">
+          <Link href="/loads/new">
+            <Plus size={16} />
+            Post New Load
+          </Link>
+        </Button>
       </div>
 
       {fetchError && (
@@ -137,208 +111,112 @@ export default function LoadsPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        {loading ? (
-          <SkeletonRows />
-        ) : loads.length === 0 ? (
-          <EmptyNoLoads />
-        ) : filtered.length === 0 ? (
-          <EmptyNoMatch onClear={clearFilters} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">ID</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Route</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Type</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Miles</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Shipper Rate</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Carrier Cost</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Margin</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((load) => (
-                  <tr
-                    key={load.id}
-                    className="cursor-pointer border-b border-slate-100 transition-colors duration-150 last:border-0 hover:bg-slate-50"
-                    onClick={() => router.push(`/loads/${load.id}`)}
-                  >
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/loads/${load.id}`}
-                        className="font-mono text-xs text-[#1a3a5c] underline-offset-2 hover:underline"
-                      >
-                        #{load.id.slice(0, 8).toUpperCase()}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{load.pickup_location}</div>
-                      <div className="text-xs text-slate-400">to {load.delivery_location}</div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{loadTypeLabels[load.load_type] ?? load.load_type}</td>
-                    <td className="px-4 py-3 tabular-nums text-slate-600">{load.distance_miles.toLocaleString()}</td>
-                    <td className="px-4 py-3 font-medium tabular-nums text-slate-900">
-                      ${load.shipper_rate.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-600">
-                      {load.carrier_cost ? `$${load.carrier_cost.toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {load.margin_percentage ? (
-                        <span
-                          className={`font-medium ${
-                            load.margin_percentage >= 15
-                              ? 'text-green-600'
-                              : load.margin_percentage >= 8
-                                ? 'text-amber-600'
-                                : 'text-red-600'
-                          }`}
-                        >
-                          {load.margin_percentage.toFixed(1)}%
+      {loads.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Route</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Pickup</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Equipment</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Bids</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Target Rate</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loads.map((load) => (
+                <TableRow key={load.id} className="hover:bg-slate-50">
+                  <TableCell>
+                    <Link
+                      href={`/loads/${load.id}`}
+                      className="group flex min-w-64 items-center gap-3 text-slate-900"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1a3a5c]/10 text-[#1a3a5c]">
+                        <Package size={16} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-1.5 font-medium">
+                          {load.origin_city}, {load.origin_state}
+                          <ArrowRight size={14} className="text-slate-400" />
+                          {load.destination_city}, {load.destination_state}
                         </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={load.status} />
-                    </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {load.status === 'draft' || load.status === 'pricing' ? (
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/pricing?loadId=${load.id}`)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-[#1a3a5c]/30 hover:bg-[#1a3a5c]/5 hover:text-[#1a3a5c]"
-                        >
-                          <Calculator size={13} />
-                          AI Price
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/negotiate?loadId=${load.id}`)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-[#1a3a5c]/30 hover:bg-[#1a3a5c]/5 hover:text-[#1a3a5c]"
-                        >
-                          <MessageSquare size={13} />
-                          Negotiate
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                        <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                          #{load.id.slice(0, 8).toUpperCase()}
+                        </span>
+                      </span>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {formatDate(load.pickup_date)}
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {equipmentLabels[load.equipment_type]}
+                  </TableCell>
+                  <TableCell className="font-medium tabular-nums text-slate-900">
+                    {load.bid_count}
+                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums text-slate-900">
+                    {formatCurrency(load.target_rate)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={load.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }
 
-interface StatusPillProps {
-  status: Load['status']
+function EmptyState() {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c]">
+        <Inbox size={22} />
+      </div>
+      <h2 className="text-base font-semibold text-slate-900">No loads posted yet</h2>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+        Post your first load to start receiving bids from verified carriers.
+      </p>
+      <Button asChild className="mt-5 rounded-lg bg-[#1a3a5c] text-white hover:bg-[#1a3a5c]/90">
+        <Link href="/loads/new">
+          <Plus size={16} />
+          Post New Load
+        </Link>
+      </Button>
+    </div>
+  )
 }
 
-function StatusPill({ status }: StatusPillProps) {
-  const styles: Record<string, { pill: string; dot: string }> = {
-    active: { pill: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
-    negotiating: { pill: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
-    pricing: { pill: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
-    draft: { pill: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
-    completed: { pill: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
-  }
-  const tone = styles[status] ?? { pill: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+function StatusBadge({ status }: { status: MarketplaceLoadStatus }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${tone.pill}`}
+    <Badge
+      variant="outline"
+      className={`capitalize ${statusStyles[status] ?? 'border-slate-200 bg-slate-100 text-slate-600'}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
-      {status}
-    </span>
+      {status.replace('_', ' ')}
+    </Badge>
   )
 }
 
-function SkeletonRows() {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            {['ID', 'Route', 'Type', 'Miles', 'Shipper Rate', 'Carrier Cost', 'Margin', 'Status', 'Actions'].map((h) => (
-              <th
-                key={h}
-                className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i} className="border-b border-slate-100 last:border-0">
-              <td className="px-4 py-3"><div className="h-4 w-16 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3">
-                <div className="h-4 w-36 animate-pulse rounded bg-slate-100" />
-                <div className="mt-1.5 h-3 w-24 animate-pulse rounded bg-slate-100" />
-              </td>
-              <td className="px-4 py-3"><div className="h-4 w-16 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-4 w-12 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-4 w-20 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-4 w-20 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-4 w-12 animate-pulse rounded bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-6 w-20 animate-pulse rounded-full bg-slate-100" /></td>
-              <td className="px-4 py-3"><div className="h-7 w-20 animate-pulse rounded bg-slate-100" /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(value)
 }
 
-function EmptyNoLoads() {
-  return (
-    <div className="p-12 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a3a5c]/10">
-        <Inbox size={22} className="text-[#1a3a5c]" />
-      </div>
-      <h3 className="mb-1 text-sm font-semibold text-slate-900">No loads yet</h3>
-      <p className="mb-5 text-sm text-slate-500">Create your first load to get AI-powered pricing.</p>
-      <a
-        href="/loads/new"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a3a5c] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1a3a5c]/90"
-      >
-        <Plus size={16} />
-        New Load
-      </a>
-    </div>
-  )
-}
-
-interface EmptyNoMatchProps {
-  onClear: () => void
-}
-
-function EmptyNoMatch({ onClear }: EmptyNoMatchProps) {
-  return (
-    <div className="p-12 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-        <SearchX size={22} className="text-slate-500" />
-      </div>
-      <h3 className="mb-1 text-sm font-semibold text-slate-900">No loads match your filters</h3>
-      <p className="mb-5 text-sm text-slate-500">Try a different search term or adjust the status filter.</p>
-      <button
-        type="button"
-        onClick={onClear}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#1a3a5c]/30 hover:bg-[#1a3a5c]/5 hover:text-[#1a3a5c]"
-      >
-        Clear filters
-      </button>
-    </div>
-  )
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(iso))
 }
