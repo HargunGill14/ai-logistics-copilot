@@ -22,10 +22,6 @@ export default async function OnboardingPage() {
     redirect(role === 'carrier' ? '/carrier' : '/dashboard')
   }
 
-  // Role already chosen in a previous session — skip to the right step
-  if (profile?.role === 'broker') redirect('/onboarding/broker')
-  if (profile?.role === 'carrier') redirect('/onboarding/carrier')
-
   return (
     <div>
       <div className="mb-10 text-center">
