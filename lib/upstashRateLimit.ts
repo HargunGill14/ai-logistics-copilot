@@ -36,6 +36,22 @@ const importCarriersLimiter = redis
     })
   : null
 
+const emailDraftLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(20, '1 h'),
+      prefix: 'fretraq:email-draft',
+    })
+  : null
+
+const emailSendLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, '1 h'),
+      prefix: 'fretraq:email-send',
+    })
+  : null
+
 export async function limitDatPost(userId: string): Promise<{
   allowed: boolean
   configured: boolean
@@ -69,5 +85,29 @@ export async function limitImportCarriers(userId: string): Promise<{
   }
 
   const result = await importCarriersLimiter.limit(userId)
+  return { allowed: result.success, configured: true }
+}
+
+export async function limitEmailDraft(userId: string): Promise<{
+  allowed: boolean
+  configured: boolean
+}> {
+  if (!emailDraftLimiter) {
+    return { allowed: false, configured: false }
+  }
+
+  const result = await emailDraftLimiter.limit(userId)
+  return { allowed: result.success, configured: true }
+}
+
+export async function limitEmailSend(userId: string): Promise<{
+  allowed: boolean
+  configured: boolean
+}> {
+  if (!emailSendLimiter) {
+    return { allowed: false, configured: false }
+  }
+
+  const result = await emailSendLimiter.limit(userId)
   return { allowed: result.success, configured: true }
 }

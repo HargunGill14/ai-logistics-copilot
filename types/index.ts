@@ -257,6 +257,39 @@ export interface BrokerCarrier {
   updated_at: string
 }
 
+export type EmailType = 'carrier_outreach' | 'rate_confirmation' | 'load_tender'
+
+export interface EmailDraftRequest {
+  loadId: string
+  emailType: EmailType
+  recipient?: string
+  notes?: string
+}
+
+export interface EmailDraftResponse {
+  subject: string
+  body: string
+}
+
+export interface EmailSendRequest {
+  loadId: string
+  emailType: EmailType
+  recipient: string
+  subject: string
+  body: string
+}
+
+export interface EmailSendResponse {
+  success: boolean
+  id: string
+  threadId: string | null
+}
+
+export interface GmailConnectionStatus {
+  connected: boolean
+  email: string | null
+}
+
 export type ImportErrorCode =
   | 'validation_failed'
   | 'insert_failed'

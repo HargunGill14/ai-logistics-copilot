@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { BidDecisionButtons } from '@/components/loads/BidDecisionButtons'
+import { EmailComposer } from '@/components/loads/EmailComposer'
 import { PostToDatButton } from '@/components/loads/PostToDatButton'
 import type { BidStatus, LoadBid, MarketplaceLoad, MarketplaceLoadStatus } from '@/types'
 
@@ -21,6 +22,13 @@ interface CarrierVerificationRow {
   carrier_id: string
   trust_score: number
   verification_status: string
+}
+
+interface BrokerProfileRow {
+  organization_id: string
+  role: string | null
+  gmail_email: string | null
+  gmail_connected_at: string | null
 }
 
 interface BidWithCarrier extends LoadBid {
@@ -65,7 +73,7 @@ export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('organization_id')
+    .select('organization_id, role, gmail_email, gmail_connected_at')
     .eq('id', user.id)
     .single()
 
@@ -73,11 +81,13 @@ export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
     redirect('/login')
   }
 
+  const brokerProfile = profile as BrokerProfileRow
+
   const { data: loadRow, error: loadError } = await supabase
     .from('marketplace_loads')
     .select('*')
     .eq('id', id)
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', brokerProfile.organization_id)
     .single()
 
   if (loadError || !loadRow) {
@@ -178,6 +188,16 @@ export default async function LoadDetailPage({ params }: LoadDetailPageProps) {
           value={load.dat_load_id ? `Posted #${load.dat_load_id}` : 'Not posted'}
         />
       </div>
+
+      {brokerProfile.role === 'broker' && (
+        <EmailComposer
+          loadId={load.id}
+          gmail={{
+            connected: Boolean(brokerProfile.gmail_connected_at && brokerProfile.gmail_email),
+            email: brokerProfile.gmail_email,
+          }}
+        />
+      )}
 
       {load.status === 'covered' && acceptedBid && (
         <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-green-800">
