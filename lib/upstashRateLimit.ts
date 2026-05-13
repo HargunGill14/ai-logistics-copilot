@@ -52,6 +52,14 @@ const emailSendLimiter = redis
     })
   : null
 
+const qboSyncLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, '1 h'),
+      prefix: 'fretraq:qbo-sync',
+    })
+  : null
+
 export async function limitDatPost(userId: string): Promise<{
   allowed: boolean
   configured: boolean
@@ -109,5 +117,17 @@ export async function limitEmailSend(userId: string): Promise<{
   }
 
   const result = await emailSendLimiter.limit(userId)
+  return { allowed: result.success, configured: true }
+}
+
+export async function limitQboSync(userId: string): Promise<{
+  allowed: boolean
+  configured: boolean
+}> {
+  if (!qboSyncLimiter) {
+    return { allowed: false, configured: false }
+  }
+
+  const result = await qboSyncLimiter.limit(userId)
   return { allowed: result.success, configured: true }
 }

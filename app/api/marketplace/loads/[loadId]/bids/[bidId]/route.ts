@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendBidAcceptedEmail, sendBidRejectedEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
+import { createQboInvoice, getQboConnectionForOrg } from '@/lib/quickbooks'
 
 const schema = z.object({
   action: z.enum(['accept', 'reject', 'withdraw']),
@@ -91,7 +92,7 @@ export async function PATCH(
 
       const { data: load, error: loadError } = await supabase
         .from('marketplace_loads')
-        .select('id, status, organization_id, broker_id, origin_city, origin_state, destination_city, destination_state, pickup_date')
+        .select('id, status, organization_id, broker_id, origin_city, origin_state, destination_city, destination_state, pickup_date, target_rate, commodity')
         .eq('id', loadId)
         .single()
 
@@ -153,6 +154,33 @@ export async function PATCH(
             }
           }).catch(() => {})
         }
+
+        // Fire-and-forget: create QBO invoice when load is covered
+        void (async () => {
+          try {
+            const qboConn = await getQboConnectionForOrg(profile.organization_id)
+            if (!qboConn) return
+
+            const qboInvoiceId = await createQboInvoice({
+              realmId: qboConn.connection.realm_id,
+              accessToken: qboConn.accessToken,
+              loadId: load.id as string,
+              originCity: load.origin_city as string,
+              originState: load.origin_state as string,
+              destinationCity: load.destination_city as string,
+              destinationState: load.destination_state as string,
+              pickupDate: load.pickup_date as string,
+              shipperRate: load.target_rate as number,
+              commodity: (load.commodity as string | null) ?? null,
+            })
+
+            const svc = createServiceClient()
+            await svc
+              .from('marketplace_loads')
+              .update({ qbo_invoice_id: qboInvoiceId, qbo_synced_at: new Date().toISOString() })
+              .eq('id', load.id)
+          } catch {}
+        })()
 
         return NextResponse.json({ success: true })
       }

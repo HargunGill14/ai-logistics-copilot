@@ -94,6 +94,8 @@ export type MarketplaceLoadStatus =
   | 'expired'
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
 
+export type CarrierPaymentStatus = 'pending' | 'paid'
+
 export interface MarketplaceLoad {
   id: string
   load_id: string | null
@@ -117,7 +119,27 @@ export interface MarketplaceLoad {
   covered_at: string | null
   dat_load_id: string | null
   dat_posted_at: string | null
+  qbo_invoice_id: string | null
+  qbo_synced_at: string | null
+  carrier_payment_status: CarrierPaymentStatus
   created_at: string
+}
+
+export interface QboConnection {
+  id: string
+  organization_id: string
+  realm_id: string
+  company_name: string | null
+  connected_by: string
+  connected_at: string
+  is_active: boolean
+}
+
+export interface QboConnectionStatus {
+  connected: boolean
+  realm_id: string | null
+  company_name: string | null
+  connected_at: string | null
 }
 
 export interface LoadBid {
